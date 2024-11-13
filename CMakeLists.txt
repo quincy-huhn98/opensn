@@ -51,6 +51,8 @@ if(OPENSN_WITH_LUA)
     set(OPENSN_WITH_PYTHON_MODULE OFF CACHE BOOL "Lua support requested, disabling Python module" FORCE)
 endif()
 
+option(OPENSN_WITH_LIBROM "Build with libROM support" OFF)
+
 # dependencies
 find_package(MPI REQUIRED)
 
@@ -67,6 +69,11 @@ find_package(Boost REQUIRED CONFIG)
 
 if(OPENSN_WITH_LUA)
     find_package(Lua 5.3 REQUIRED)
+endif()
+
+if(OPENSN_WITH_LIBROM)
+    find_library(LIBROM_LIBRARY NAMES ROM PATHS ENV LIBROM_DIR REQUIRED)
+    find_path(LIBROM_INCLUDE_DIR NAMES librom.h PATHS ENV LIBROM_DIR)
 endif()
 
 find_package(VTK QUIET)
@@ -193,6 +200,7 @@ target_include_directories(libopensn
     $<BUILD_INTERFACE:${caliper_INCLUDE_DIR}>
     $<BUILD_INTERFACE:${PETSC_INCLUDE_DIR}>
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${LIBROM_INCLUDE_DIR}>
 )
 if (OPENSN_WITH_CUDA)
     target_include_directories(libopensn PUBLIC $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>)
@@ -208,6 +216,7 @@ target_link_libraries(libopensn
     caliper
     ${HDF5_LIBRARIES}
     MPI::MPI_CXX
+    $<$<BOOL:${OPENSN_WITH_LIBROM}>:${LIBROM_LIBRARY}>
 )
 if (OPENSN_WITH_CUDA)
     target_link_libraries(libopensn PRIVATE ${CUDA_LIBRARIES} CUDA::cublas)
@@ -215,6 +224,10 @@ endif()
 if(OPENSN_WITH_LUA)
     target_link_libraries(libopensn PRIVATE ${LUA_LIBRARIES})
     target_compile_definitions(libopensn PRIVATE OPENSN_WITH_LUA)
+endif()
+
+if (OPENSN_WITH_LIBROM)
+    target_compile_definitions(libopensn PRIVATE OPENSN_WITH_LIBROM)
 endif()
 
 target_compile_options(libopensn PRIVATE ${OPENSN_CXX_FLAGS})
