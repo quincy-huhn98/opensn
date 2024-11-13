@@ -105,6 +105,10 @@ CMake-hdf5-1.14.3.tar.gz"
     "caliper": [
         "2.10.0",
         "https://github.com/LLNL/Caliper/archive/refs/tags/v2.10.0.tar.gz"
+    ],
+    "libROM": [
+        "master",
+        "https://github.com/LLNL/libROM/archive/refs/heads/master.zip"
     ]
 }
 
@@ -150,11 +154,14 @@ def CheckExecutableExists(thingname: str, thing: str):
 
 # Downloads a package using curl
 def DownloadPackage(url, pkg, ver):
+    extension = ".tar.gz"
+    if url.endswith(".zip"):
+        extension = ".zip"
     pkgdir = f"{install_dir}/downloads"
     log_file.write(f"Downloading {pkg.upper()} {ver} to \"{pkgdir}\" "
                    + f"with command: curl {url}")
     download_cmd = "curl"
-    output_cmd = f"-L --output {pkg}-{ver}.tar.gz"
+    output_cmd = f"-L --output {pkg}-{ver}{extension}"
 
     pkgdir_relative = os.path.relpath(pkgdir)
 
@@ -162,16 +169,16 @@ def DownloadPackage(url, pkg, ver):
           + f"with command:\n{download_cmd} {url} {output_cmd}", end="", flush=True)
 
     already_there = False
-    if not os.path.exists(f"{install_dir}/downloads/{pkg}-{ver}.tar.gz"):
+    if not os.path.exists(f"{install_dir}/downloads/{pkg}-{ver}{extension}"):
         ExecSub(f"{download_cmd} {url} {output_cmd}", out_log=log_file)
 
-        if os.path.exists(f"{install_dir}/downloads/{pkg.upper()}-{ver}.tar.gz"):
-            item = f"{pkg.upper()}-{ver}.tar.gz"
+        if os.path.exists(f"{install_dir}/downloads/{pkg.upper()}-{ver}{extension}"):
+            item = f"{pkg.upper()}-{ver}{extension}"
             shutil.move(f"{item}", f"{item.lower()}")
     else:
         already_there = True
 
-    if os.path.exists(f"{install_dir}/downloads/{pkg}-{ver}.tar.gz"):
+    if os.path.exists(f"{install_dir}/downloads/{pkg}-{ver}{extension}"):
         there = "Already downloaded" if already_there else ""
         print(f" {TextColors.OKGREEN}Success{TextColors.ENDC} "
               + f"{TextColors.OKCYAN}{there}{TextColors.ENDC}")
@@ -655,6 +662,92 @@ def InstallHDF5(pkg: str, ver: str, gold_file: str):
         return False
 
 
+# Install libROM
+def InstalllibROM(pkg: str, ver: str, gold_file: str):
+    package_log_filename = f"{install_dir}/logs/{pkg}_log.txt"
+    pkg_install_dir = f"{install_dir}"
+
+    shutil.copy(f"{install_dir}/downloads/{pkg}-{ver}.zip",
+                f"{install_dir}/src/libROM-{ver}.zip")
+
+    os.chdir(f"{install_dir}/src")
+
+    # Check if it is installed already
+    if not os.path.exists(f"{pkg_install_dir}/{gold_file}"):
+        print(f"Extracting package with command unzip {pkg}-{ver}.zip")
+
+        success, err, outstr = ExecSub(f"unzip {pkg}-{ver}.zip", log_file)
+
+        if not success:
+            raise RuntimeError(err)
+
+        package_log_file = open(package_log_filename, "w")
+
+        print(f"Configuring {pkg.upper()} {ver} in \"{os.getcwd()}\"", flush=True)
+        log_file.write(f"Configuring {pkg.upper()} {ver} in \"{os.getcwd()}\"")
+        log_file.write(f" See {package_log_filename}\n")
+        log_file.flush()
+
+        env_vars = os.environ.copy()
+        if len(os.getenv("CC")) == 0:
+            env_vars["CC"] = shutil.which("mpicc")
+        if len(os.getenv("CXX")) == 0:
+            env_vars["CXX"] = shutil.which("mpicxx")
+        if len(os.getenv("FC")) == 0:
+            env_vars["FC"] = shutil.which("mpifort")
+
+        build_dir = f"{install_dir}/src/libROM-{ver}/build"
+        MakeDirectory(build_dir)
+        os.chdir(build_dir)
+
+        command = f""" cmake -DCMAKE_INSTALL_PREFIX={pkg_install_dir} \\
+-DCMAKE_TOOLCHAIN_FILE={build_dir}/../cmake/toolchains/default-toss_4_x86_64_ib-librom-dev.cmake \
+-DCMAKE_BUILD_TYPE=Release \
+-DUSE_MFEM=OFF \
+../
+"""
+
+        success, err, outstr = ExecSub(
+            command, out_log=package_log_file, env_vars=env_vars
+        )
+        if not success:
+            print(command, err)
+            log_file.write(f"{command}\n{err}\n")
+            package_log_file.write(f"{command}\n{err}\n")
+            raise RuntimeError(f"Failed to configure {pkg}")
+
+        command = f"{make_command} -j{argv.jobs}"
+        success, err, outstr = ExecSub(
+            command, out_log=package_log_file, env_vars=env_vars
+        )
+        if not success:
+            print(command, err)
+            log_file.write(f"{command}\n{err}\n")
+            package_log_file.write(f"{command}\n{err}\n")
+            raise RuntimeError(f"Failed to build {pkg}")
+
+        command = f"{make_command} install"
+        success, err, outstr = ExecSub(
+            command, out_log=package_log_file, env_vars=env_vars
+        )
+        if not success:
+            print(command, err)
+            log_file.write(f"{command}\n{err}\n")
+            package_log_file.write(f"{command}\n{err}\n")
+            raise RuntimeError(f"Failed to install {pkg}")
+
+        package_log_file.close()
+    else:
+        print(f"{pkg} already installed")
+
+    os.chdir(install_dir)
+
+    if os.path.exists(f"{pkg_install_dir}/{gold_file}"):
+        return True
+    else:
+        return False
+
+
 try:
     argv = parser.parse_args()  # argv = argument values
 
@@ -767,6 +860,8 @@ try:
         elif pkg == 'hdf5':
             major, minor, patch = ver.split('.')
             success = InstallHDF5(pkg, ver, gold_file="include/hdf5.h")
+        elif pkg == 'libROM':
+            success = InstalllibROM(pkg, ver, gold_file="include/librom.h")
         else:
             print(f"No build rules for {pkg}")
 
@@ -791,9 +886,11 @@ try:
 
     petsc_dir = f"{install_dir}"
     vtk_dir = f"{install_dir}"
+    librom_dir = f"{install_dir}"
 
     env_script_file.write(f'export CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH:"{install_dir}"\n')
     env_script_file.write(f'export PETSC_DIR={petsc_dir}\n')
+    env_script_file.write(f'export LIBROM_DIR={librom_dir}\n')
 
     if os.path.exists(f"{vtk_dir}/lib64"):
         env_script_file.write(f'export LD_LIBRARY_PATH="{vtk_dir}/lib64":$LD_LIBRARY_PATH\n')
@@ -810,6 +907,7 @@ try:
 
     print(f'CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH:"{install_dir}"')
     print(f'PETSC_DIR={petsc_dir}')
+    print(f'LIBROM_DIR={librom_dir}')
     print()
     print(TextColors.WARNING
           + "When compiling OpenSn, in a terminal, the following environment variables need to be "
@@ -817,6 +915,7 @@ try:
 
     print(f'export CMAKE_PREFIX_PATH=$CMAKE_PREFIX_PATH:"{install_dir}"')
     print(f'export PETSC_DIR="{petsc_dir}"')
+    print(f'export LIBROM_DIR="{librom_dir}"')
     if os.path.exists(f"{vtk_dir}/lib64"):
         print(f'export LD_LIBRARY_PATH="{vtk_dir}/lib":$LD_LIBRARY_PATH')
     else:
