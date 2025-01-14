@@ -56,23 +56,40 @@ SteadyStateSolver::Initialize()
 void
 SteadyStateSolver::Execute()
 {
-  CALI_CXX_MARK_SCOPE("SteadyStateSolver::Execute");
+  if (lbs_solver_.Options().phase == "offline")
+  {
+    CALI_CXX_MARK_SCOPE("SteadyStateSolver::Execute");
 
-  auto& options = lbs_solver_->GetOptions();
+    auto& options = lbs_solver_->GetOptions();
 
-  auto& ags_solver = *lbs_solver_->GetAGSSolver();
-  ags_solver.Solve();
+    auto& ags_solver = *lbs_solver_->GetAGSSolver();
+    ags_solver.Solve();
 
-  if (options.restart_writes_enabled)
-    WriteRestartData();
+    if (options.restart_writes_enabled)
+      WriteRestartData();
 
-  if (options.use_precursors)
-    lbs_solver_->ComputePrecursors();
+    if (options.use_precursors)
+      lbs_solver_->ComputePrecursors();
 
-  if (options.adjoint)
-    lbs_solver_->ReorientAdjointSolution();
+    if (options.adjoint)
+      lbs_solver_->ReorientAdjointSolution();
 
-  lbs_solver_->UpdateFieldFunctions();
+    lbs_solver_->UpdateFieldFunctions();
+
+    lbs_solver_.TakeSample(lbs_solver_.Options().param_id);
+  }
+  if (lbs_solver_.Options().phase == "merge")
+  {
+    lbs_solver_.MergePhase(lbs_solver_.Options().param_id);
+  }
+  if (lbs_solver_.Options().phase == "online")
+  {
+    lbs_solver_.ReadBasis();
+    lbs_solver_.OperatorAction();
+    DenseMatrix<double> AU_ = lbs_solver_.AssembleAU();
+    opensn::Vector<double> b_ = lbs_solver_.LoadRHS();
+    lbs_solver_.SolveROM(AU_, b_);
+  }
 }
 
 bool

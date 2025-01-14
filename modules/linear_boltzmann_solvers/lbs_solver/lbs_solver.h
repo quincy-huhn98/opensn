@@ -292,6 +292,12 @@ public:
    */
   virtual void ReorientAdjointSolution(){};
 
+  /// Save current Phi in the basis generator
+  void TakeSample(int id);
+
+  /// Load snapshots and perform SVD
+  void MergePhase(int nsnaps);
+
 protected:
   /// Performs general input checks before initialization continues.
   virtual void PerformInputChecks();
