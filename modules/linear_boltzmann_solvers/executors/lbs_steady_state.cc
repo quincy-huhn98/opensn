@@ -43,18 +43,27 @@ SteadyStateSolver::Initialize()
 void
 SteadyStateSolver::Execute()
 {
-  CALI_CXX_MARK_SCOPE("SteadyStateSolver::Execute");
+  if (lbs_solver_.Options().phase == "offline")
+  {
+    CALI_CXX_MARK_SCOPE("SteadyStateSolver::Execute");
 
-  auto& ags_solver = *lbs_solver_.GetAGSSolver();
-  ags_solver.Solve();
+    auto& ags_solver = *lbs_solver_.GetAGSSolver();
+    ags_solver.Solve();
 
-  if (lbs_solver_.Options().use_precursors)
-    lbs_solver_.ComputePrecursors();
+    if (lbs_solver_.Options().use_precursors)
+      lbs_solver_.ComputePrecursors();
 
-  if (lbs_solver_.Options().adjoint)
-    lbs_solver_.ReorientAdjointSolution();
+    if (lbs_solver_.Options().adjoint)
+      lbs_solver_.ReorientAdjointSolution();
 
-  lbs_solver_.UpdateFieldFunctions();
+    lbs_solver_.UpdateFieldFunctions();
+
+    lbs_solver_.TakeSample(lbs_solver_.Options().param_id);
+  }
+  if (lbs_solver_.Options().phase == "merge")
+  {
+    lbs_solver_.MergePhase(lbs_solver_.Options().param_id);
+  }
 }
 
 } // namespace opensn

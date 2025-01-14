@@ -62,49 +62,49 @@ Initialize()
   // Disable internal HDF error reporting
   H5Eset_auto2(H5E_DEFAULT, NULL, NULL);
 
-#ifdef OPENSN_WITH_LIBROM
-    // small placeholder example to verify libROM is working
-    int rank = 0;
-    int dim = 6;
+// #ifdef OPENSN_WITH_LIBROM
+//     // small placeholder example to verify libROM is working
+//     int rank = 0;
+//     int dim = 6;
 
-    // Construct the incremental basis generator to use the fast update
-    // incremental algorithm and the incremental sampler.
-    CAROM::Options svd_options = CAROM::Options(dim, 2).setMaxBasisDimension(2)
-                                 .setIncrementalSVD(1.0e-2, 1.0e-6, 1.0e-2, 0.11, true).setDebugMode(true);
+//     // Construct the incremental basis generator to use the fast update
+//     // incremental algorithm and the incremental sampler.
+//     CAROM::Options svd_options = CAROM::Options(dim, 2).setMaxBasisDimension(2)
+//                                  .setIncrementalSVD(1.0e-2, 1.0e-6, 1.0e-2, 0.11, true).setDebugMode(true);
 
 
-    CAROM::BasisGenerator inc_basis_generator(
-        svd_options, true
-    );
+//     CAROM::BasisGenerator inc_basis_generator(
+//         svd_options, true
+//     );
 
-    // Define the values for the first sample.
-    double vals0[6] = {1.0, 6.0, 3.0, 8.0, 17.0, 9.0};
+//     // Define the values for the first sample.
+//     double vals0[6] = {1.0, 6.0, 3.0, 8.0, 17.0, 9.0};
 
-    // Define the values for the second sample.
-    double vals1[6] = {2.0, 7.0, 4.0, 9.0, 18.0, 10.0};
+//     // Define the values for the second sample.
+//     double vals1[6] = {2.0, 7.0, 4.0, 9.0, 18.0, 10.0};
 
-    bool status = false;
+//     bool status = false;
 
-    // Take the first sample.
-    if (inc_basis_generator.isNextSample(0.0)) {
-        status = inc_basis_generator.takeSample(&vals0[dim*rank]);
-        if (status) {
-            inc_basis_generator.computeNextSampleTime(&vals0[dim*rank],
-                    &vals0[dim*rank],
-                    0.0);
-        }
-    }
+//     // Take the first sample.
+//     if (inc_basis_generator.isNextSample(0.0)) {
+//         status = inc_basis_generator.takeSample(&vals0[dim*rank]);
+//         if (status) {
+//             inc_basis_generator.computeNextSampleTime(&vals0[dim*rank],
+//                     &vals0[dim*rank],
+//                     0.0);
+//         }
+//     }
 
-    // Take the second sample.
-    if (status && inc_basis_generator.isNextSample(0.11)) {
-        status = inc_basis_generator.takeSample(&vals1[dim*rank]);
-        if (status) {
-            inc_basis_generator.computeNextSampleTime(&vals1[dim*rank],
-                    &vals1[dim*rank],
-                    0.11);
-        }
-    }
-#endif
+//     // Take the second sample.
+//     if (status && inc_basis_generator.isNextSample(0.11)) {
+//         status = inc_basis_generator.takeSample(&vals1[dim*rank]);
+//         if (status) {
+//             inc_basis_generator.computeNextSampleTime(&vals1[dim*rank],
+//                     &vals1[dim*rank],
+//                     0.11);
+//         }
+//     }
+// #endif
 
   return 0;
 }
