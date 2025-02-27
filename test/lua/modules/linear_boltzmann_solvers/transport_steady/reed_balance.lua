@@ -69,6 +69,7 @@ lbs_block = {
     spatial_discretization = "pwld",
     boundary_conditions = { { name = "zmin", type = "vacuum" }, { name = "zmax", type = "vacuum" } },
     volumetric_sources = { src0, src1 },
+    param_id = 0
   },
 }
 
