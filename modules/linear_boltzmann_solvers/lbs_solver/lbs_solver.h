@@ -12,6 +12,7 @@
 #include "framework/math/spatial_discretization/spatial_discretization.h"
 #include "framework/math/linear_solver/linear_solver.h"
 #include "framework/physics/solver.h"
+#include "linalg/Matrix.h"
 #include <petscksp.h>
 #include <chrono>
 
@@ -345,6 +346,12 @@ public:
   /// Load snapshots and perform SVD
   void MergePhase(int nsnaps);
 
+  /// Load the basis from h5
+  void ReadBasis();
+
+  /// Perform the operator action of the sweep onto the reduced basis
+  void OperatorAction();
+
 protected:
   /// Performs general input checks before initialization continues.
   virtual void PerformInputChecks();
@@ -426,6 +433,9 @@ protected:
 
   std::map<std::pair<size_t, size_t>, size_t> phi_field_functions_local_map_;
   size_t power_gen_fieldfunc_local_handle_ = 0;
+
+  CAROM::Matrix* spatialbasis;
+  int romRank;
 
   /// Time integration parameter meant to be set by an executor
   std::shared_ptr<const TimeIntegration> time_integration_ = nullptr;

@@ -69,6 +69,7 @@ lbs_block = {
     scattering_order = 0,
     spatial_discretization = "pwld",
     boundary_conditions = { { name = "zmin", type = "vacuum" }, { name = "zmax", type = "vacuum" } },
+    param_id = 0
   },
 }
 

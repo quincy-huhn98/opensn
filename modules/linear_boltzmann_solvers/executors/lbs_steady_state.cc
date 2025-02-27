@@ -64,6 +64,11 @@ SteadyStateSolver::Execute()
   {
     lbs_solver_.MergePhase(lbs_solver_.Options().param_id);
   }
+  if (lbs_solver_.Options().phase == "online")
+  {
+    lbs_solver_.ReadBasis();
+    lbs_solver_.OperatorAction();
+  }
 }
 
 } // namespace opensn
