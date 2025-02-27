@@ -3,6 +3,7 @@
 
 #include "modules/linear_boltzmann_solvers/discrete_ordinates_solver/iterative_methods/sweep_wgs_context.h"
 #include "modules/linear_boltzmann_solvers/discrete_ordinates_solver/lbs_discrete_ordinates_solver.h"
+#include "modules/linear_boltzmann_solvers/lbs_solver/lbs_vecops.h"
 #include "modules/linear_boltzmann_solvers/lbs_solver/preconditioning/lbs_shell_operations.h"
 #include "framework/runtime.h"
 #include "framework/logging/log.h"
@@ -27,8 +28,7 @@ SweepWGSContext::SweepWGSContext(DiscreteOrdinatesSolver& lbs_solver,
     sweep_scheduler(lbs_solver.SweepType() == "AAH" ? SchedulingAlgorithm::DEPTH_OF_GRAPH
                                                     : SchedulingAlgorithm::FIRST_IN_FIRST_OUT,
                     *groupset.angle_agg,
-                    *sweep_chunk),
-    lbs_ss_solver(lbs_solver)
+                    *sweep_chunk)
 {
 }
 
@@ -114,6 +114,7 @@ SweepWGSContext::ApplyInverseTransportOperator(SourceFlags scope)
     sweep_scheduler.ZeroIncomingDelayedPsi();
 
   // Sweep
+  dynamic_cast<DiscreteOrdinatesSolver&>(lbs_solver).ZeroOutflowBalanceVars(groupset);
   sweep_scheduler.ZeroOutputFluxDataStructures();
   std::chrono::high_resolution_clock::time_point sweep_start =
     std::chrono::high_resolution_clock::now();
@@ -133,15 +134,19 @@ SweepWGSContext::PostSolveCallback()
 
   // Perform final sweep with converged phi and delayed psi dofs. This step is necessary for
   // Krylov methods to recover the actual solution (this includes all of the PETSc methods
-  // currently used in OpenSn). This step also zeros out balance variables and computes the correct
-  // in-flow and out-flow. Classic Richardson calls this solely to compute balance quantities (note
-  // that it does cost us an extra sweep that is technically not necessary).
-  lbs_ss_solver.ZeroOutflowBalanceVars(groupset);
-  const auto scope = lhs_src_scope | rhs_src_scope;
-  set_source_function(groupset, lbs_solver.QMomentsLocal(), lbs_solver.PhiOldLocal(), scope);
-  sweep_scheduler.SetDestinationPhi(lbs_solver.PhiNewLocal());
-  ApplyInverseTransportOperator(scope);
-  lbs_solver.GSScopedCopyPrimarySTLvectors(groupset, PhiSTLOption::PHI_NEW, PhiSTLOption::PHI_OLD);
+  // currently used in OpenSn).
+  if (groupset.iterative_method == LinearSolver::IterativeMethod::PETSC_GMRES or
+      groupset.iterative_method == LinearSolver::IterativeMethod::PETSC_BICGSTAB or
+      (groupset.iterative_method == LinearSolver::IterativeMethod::PETSC_RICHARDSON and
+       groupset.max_iterations > 1))
+  {
+    const auto scope = lhs_src_scope | rhs_src_scope;
+    set_source_function(groupset, lbs_solver.QMomentsLocal(), lbs_solver.PhiOldLocal(), scope);
+    sweep_scheduler.SetDestinationPhi(lbs_solver.PhiNewLocal());
+    ApplyInverseTransportOperator(scope);
+    LBSVecOps::GSScopedCopyPrimarySTLvectors(
+      lbs_solver, groupset, PhiSTLOption::PHI_NEW, PhiSTLOption::PHI_OLD);
+  }
 
   if (log_info)
   {

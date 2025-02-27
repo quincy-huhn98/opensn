@@ -14,7 +14,7 @@ namespace opensnlua
  * \param SolverIndex int Handle to the solver for which the list is to be obtained.
  *
  * \return Pair Table and count. Returns an array of handles and the amount of
- * elements in it (indexed from 1). \ingroup LBSLuaFunctions \author Jan
+ * elements in it (indexed from 1). \ingroup LBSLuaFunctions
  */
 int LBSGetScalarFieldFunctionList(lua_State* L);
 
@@ -56,13 +56,35 @@ int LBSWriteGroupsetAngularFlux(lua_State* L);
 int LBSReadGroupsetAngularFlux(lua_State* L);
 
 /**
- * Writes the flux-moments of a LBS solution to file (phi_old_local).
+ * Writes the angular fluxes to file.
  *
  * \param SolverIndex int Handle to the solver for which the group
  * is to be created.
  *
  * \param file_base string Path+Filename_base to use for the output. Each location
  *                         will append its id to the back plus an extension ".data"
+ */
+int LBSWriteAngularFluxes(lua_State* L);
+
+/**
+ * Reads the angular fluxes from a file.
+ *
+ * \param SolverIndex int Handle to the solver for which the group
+ * is to be created.
+ *
+ * \param file_base string Path+Filename_base to use for the output. Each location
+ *                         will append its id to the back plus an extension ".data"
+ */
+int LBSReadAngularFluxes(lua_State* L);
+
+/**
+ * Writes the flux-moments of a LBS solution to file (phi_old_local).
+ *
+ * \param SolverIndex int Handle to the solver for which the group
+ * is to be created.
+ *
+ * \param file_base string Path+Filename_base to use for the output. Each location
+ *                         will append its id to the back plus an extension ".h5"
  */
 int LBSWriteFluxMoments(lua_State* L);
 
@@ -119,7 +141,7 @@ int LBSReadSourceMoments(lua_State* L);
  * is to be created.
  *
  * \param file_base string Path+Filename_base to use for the output. Each location
- *                         will append its id to the back plus an extension ".data"
+ *                         will append its id to the back plus an extension ".h5"
  *
  * \param single_file_flag bool (Optional) Flag indicating that the file is a
  *                              single stand-alone file. The file_base will then
@@ -139,7 +161,6 @@ int LBSReadFluxMoments(lua_State* L);
  * \return double The fission rate.
  *
  * \ingroup LBSLuaFunctions
- * \author Jan
  */
 int LBSComputeFissionRate(lua_State* L);
 
@@ -152,7 +173,6 @@ int LBSComputeFissionRate(lua_State* L);
  * \param SolverIndex int Handle to the solver maintaining the information.
  *
  * \ingroup LBSLuaFunctions
- * \author Jan
  */
 int LBSInitializeMaterials(lua_State* L);
 

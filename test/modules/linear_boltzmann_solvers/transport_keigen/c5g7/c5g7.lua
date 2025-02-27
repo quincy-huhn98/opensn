@@ -11,8 +11,8 @@ aquad.OptimizeForPolarSymmetry(pquad, 4.0 * math.pi)
 
 -- Solver
 if string.find(k_method, "scdsa") or string.find(k_method, "smm") then
-  inner_linear_method = "petsc_richardson"
-  l_max_its = 1
+  inner_linear_method = "classic_richardson"
+  l_max_its = 2
 else
   inner_linear_method = "petsc_gmres"
   l_max_its = 5

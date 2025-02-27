@@ -18,15 +18,15 @@ namespace opensn
 {
 
 MeshContinuum::MeshContinuum()
-  : local_cells(local_cells_),
+  : dim_(0),
+    mesh_type_(UNSTRUCTURED),
+    extruded_(false),
+    global_vertex_count_(0),
+    local_cells(local_cells_),
     cells(local_cells_,
           ghost_cells_,
           global_cell_id_to_local_id_map_,
-          global_cell_id_to_nonlocal_id_map_),
-    dim_(0),
-    mesh_type_(UNSTRUCTURED),
-    extruded_(false),
-    global_vertex_count_(0)
+          global_cell_id_to_nonlocal_id_map_)
 {
 }
 
@@ -241,7 +241,7 @@ void
 MeshContinuum::FindAssociatedVertices(const CellFace& cur_face,
                                       std::vector<short>& dof_mapping) const
 {
-  const int associated_face = cur_face.GetNeighborAssociatedFace(*this);
+  const int adj_face_idx = cur_face.GetNeighborAdjacentFaceIndex(*this);
   // Check face validity
   OpenSnLogicalErrorIf(not cur_face.has_neighbor,
                        "Invalid cell index encountered in call to "
@@ -252,7 +252,7 @@ MeshContinuum::FindAssociatedVertices(const CellFace& cur_face,
 
   dof_mapping.reserve(cur_face.vertex_ids.size());
 
-  const auto& adj_face = adj_cell.faces[associated_face];
+  const auto& adj_face = adj_cell.faces[adj_face_idx];
 
   for (auto cfvid : cur_face.vertex_ids)
   {
