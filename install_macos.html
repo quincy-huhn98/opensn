@@ -7,7 +7,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>3. Install on MacOS &mdash; OpenSn  documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
@@ -64,8 +64,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="theory/index.html">Theory Manual</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="coding_standard.html">Coding Standards</a></li>
-<li class="toctree-l1"><a class="reference internal" href="workflow.html">Developer Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="devguide/index.html">Developer’s Guide</a></li>
 </ul>
 
         </div>
@@ -196,7 +195,7 @@ checking the installations. Follow these instructions.</p>
 <p>After a successful install, add the following environment variables to the
 <code class="docutils literal notranslate"><span class="pre">~/.bashrc</span></code> or <code class="docutils literal notranslate"><span class="pre">~/.bash_profile</span></code> script:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PETSC_ROOT</span><span class="o">=</span><span class="s2">&quot;/path/to/petsc/install&quot;</span>
-<span class="nb">export</span><span class="w"> </span><span class="nv">CMAKE_PREFIX_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PETSC_ROOT</span><span class="si">}</span><span class="s2">:</span><span class="si">${</span><span class="nv">CMAKE_PREFIX_PATH</span><span class="si">}</span><span class="s2">&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">CMAKE_PREFIX_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PETSC_ROOT</span><span class="si">}${</span><span class="nv">CMAKE_PREFIX_PATH</span><span class="p">:+:</span><span class="si">${</span><span class="nv">CMAKE_PREFIX_PATH</span><span class="si">}}</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
 </section>
@@ -341,6 +340,7 @@ the configuration process above.</p>
 <p>To check if the code compiled correctly execute the test scripts:</p>
 <div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/path/to/opensn
 test/run_tests<span class="w"> </span>-j&lt;N&gt;
+build/test/opensn-unit
 </pre></div>
 </div>
 </section>

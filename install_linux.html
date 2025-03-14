@@ -7,7 +7,7 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>1. Install on Linux Machines &mdash; OpenSn  documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
   
@@ -64,8 +64,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="theory/index.html">Theory Manual</a></li>
 <li class="toctree-l1"><a class="reference internal" href="tutorials/index.html">Tutorials</a></li>
-<li class="toctree-l1"><a class="reference internal" href="coding_standard.html">Coding Standards</a></li>
-<li class="toctree-l1"><a class="reference internal" href="workflow.html">Developer Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="devguide/index.html">Developer’s Guide</a></li>
 </ul>
 
         </div>
@@ -211,7 +210,7 @@ cmake<span class="w"> </span>-DCMAKE_INSTALL_PREFIX<span class="o">=</span>/path
 <h2><span class="section-number">1.4. </span>Step 4 - Install Lua<a class="headerlink" href="#step-4-install-lua" title="Link to this heading"></a></h2>
 <p>Download and extract <strong>Lua</strong> version 5.3.6+ from https://www.lua.org to
 <code class="docutils literal notranslate"><span class="pre">dependencies</span></code>. Install <strong>Lua</strong> as follows:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>make<span class="w"> </span>linux<span class="w"> </span><span class="nv">MYCLFAGS</span><span class="o">=</span>-fPIC<span class="w"> </span>-j
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>make<span class="w"> </span>linux<span class="w"> </span><span class="nv">MYCFLAGS</span><span class="o">=</span>-fPIC<span class="w"> </span>-j
 $<span class="w"> </span>make<span class="w"> </span>install<span class="w"> </span><span class="nv">INSTALL_TOP</span><span class="o">=</span>/path/to/dependencies/directory
 </pre></div>
 </div>
@@ -245,7 +244,7 @@ cmake<span class="w"> </span>-DCMAKE_INSTALL_PREFIX<span class="o">=</span>/path
 <p>Before compiling <strong>OpenSn</strong>, you must add the location of the third-party
 libraries to your <code class="docutils literal notranslate"><span class="pre">CMAKE_PREFIX_PATH</span></code> environment variable. This can be
 accomplished with the following command:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CMAKE_PREFIX_PATH</span><span class="o">=</span>/path/to/dependencies/directory:<span class="nv">$CMAKE_PREFIX_PATH</span><span class="sb">`</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CMAKE_PREFIX_PATH</span><span class="o">=</span>/path/to/dependencies<span class="si">${</span><span class="nv">CMAKE_PREFIX_PATH</span><span class="p">:+:</span><span class="si">${</span><span class="nv">CMAKE_PREFIX_PATH</span><span class="si">}}</span><span class="sb">`</span>
 </pre></div>
 </div>
 <p><strong>Important:</strong> It may be a good idea to add the <code class="docutils literal notranslate"><span class="pre">CMAKE_PREFIX_PATH</span></code> variable to

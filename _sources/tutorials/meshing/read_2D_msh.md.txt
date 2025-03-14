@@ -27,8 +27,8 @@ meshgen = mesh.MeshGenerator.Create({
   },
   partitioner = mesh.PETScGraphPartitioner.Create({ type = "parmetis" }),
 })
-mesh.MeshGenerator.Execute(meshgen)
-mesh.ExportToPVTU("c5g7_mesh_only")
+grid = meshgen:Execute()
+mesh.ExportToPVTU(grid, "c5g7_mesh_only")
 ```
 
 ___
@@ -45,7 +45,7 @@ meshgen = mesh.MeshGenerator.Create({
   },
   partitioner = mesh.PETScGraphPartitioner.Create({ type = "parmetis" }),
 })
-mesh.MeshGenerator.Execute(meshgen)
+grid = meshgen:Execute()
 
-mesh.ExportToPVTU("c5g7_mesh_only")
+mesh.ExportToPVTU(grid, "c5g7_mesh_only")
 ```
