@@ -68,6 +68,9 @@ SteadyStateSolver::Execute()
   {
     lbs_solver_.ReadBasis();
     lbs_solver_.OperatorAction();
+    DenseMatrix<double> AU_ = lbs_solver_.AssembleAU();
+    opensn::Vector<double> b_ = lbs_solver_.LoadRHS();
+    lbs_solver_.SolveROM(AU_, b_);
   }
 }
 
