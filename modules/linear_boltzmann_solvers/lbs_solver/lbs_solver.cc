@@ -913,10 +913,10 @@ LBSSolver::SetOptions(const InputParameters& input)
       }
     }
 
-    else if (spec.Name() == "param_id")
+    else if (spec.GetName() == "param_id")
       options_.param_id = spec.GetValue<int>();
 
-    else if (spec.Name() == "phase")
+    else if (spec.GetName() == "phase")
       options_.phase = spec.GetValue<std::string>();
   } // for p
 
