@@ -86,9 +86,9 @@ package_info = {
         "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
     ],
     "hdf5": [
-        "1.14.3",
-        "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.14/hdf5-1.14.3/src/\
-CMake-hdf5-1.14.3.tar.gz"
+        "1.10.5",
+        "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.10/hdf5-1.10.5/src/\
+CMake-hdf5-1.10.5.tar.gz"
     ],
     "petsc": [
         "3.20.6",
