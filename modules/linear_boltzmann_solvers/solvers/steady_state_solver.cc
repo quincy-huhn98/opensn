@@ -56,7 +56,8 @@ SteadyStateSolver::Initialize()
 void
 SteadyStateSolver::Execute()
 {
-if (lbs_problem_.Options().phase == "offline")
+auto& options = lbs_problem_->GetOptions();
+if (options.phase == "offline")
   {
     CALI_CXX_MARK_SCOPE("SteadyStateSolver::Execute");
 
@@ -76,19 +77,19 @@ if (lbs_problem_.Options().phase == "offline")
 
     lbs_problem_->UpdateFieldFunctions();
 
-    lbs_problem_.TakeSample(lbs_problem_.Options().param_id);
+    lbs_problem_->TakeSample(options.param_id);
   }
-  if (lbs_problem_.Options().phase == "merge")
+  if (options.phase == "merge")
   {
-    lbs_problem_.MergePhase(lbs_problem_.Options().param_id);
+    lbs_problem_->MergePhase(options.param_id);
   }
-  if (lbs_problem_.Options().phase == "online")
+  if (options.phase == "online")
   {
-    lbs_problem_.ReadBasis();
-    lbs_problem_.OperatorAction();
-    DenseMatrix<double> AU_ = lbs_problem_.AssembleAU();
-    opensn::Vector<double> b_ = lbs_problem_.LoadRHS();
-    lbs_problem_.SolveROM(AU_, b_);
+    lbs_problem_->ReadBasis();
+    lbs_problem_->OperatorAction();
+    DenseMatrix<double> AU_ = lbs_problem_->AssembleAU();
+    opensn::Vector<double> b_ = lbs_problem_->LoadRHS();
+    lbs_problem_->SolveROM(AU_, b_);
   }
 }
 

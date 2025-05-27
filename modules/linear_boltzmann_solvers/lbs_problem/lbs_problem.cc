@@ -512,13 +512,13 @@ LBSProblem::OperatorAction()
           basis_local_.push_back(basis->item(i));
       }
       phi_new_local_ = basis_local_;
-      LBSProblemIO::WriteFluxMoments(*this,"basis_"+std::to_string(r));
+      LBSSolverIO::WriteFluxMoments(*this,"basis_"+std::to_string(r));
 
       auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
       gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, basis_local_, scope);
       gs_context_ptr->ApplyInverseTransportOperator(scope);
       phi_new_local_ = basis_local_ - phi_new_local_;
-      LBSProblemIO::WriteFluxMoments(*this,baseName+std::to_string(r));
+      LBSSolverIO::WriteFluxMoments(*this,baseName+std::to_string(r));
     }
 
     // Calculate RHS
@@ -527,7 +527,7 @@ LBSProblem::OperatorAction()
 
     // Apply transport operator
     gs_context_ptr->ApplyInverseTransportOperator(scope);
-    LBSProblemIO::WriteFluxMoments(*this,"rhs");
+    LBSSolverIO::WriteFluxMoments(*this,"rhs");
   }
 }
 
@@ -537,7 +537,7 @@ LBSProblem::AssembleAU()
   DenseMatrix<double> AU_(local_node_count_, romRank);
   for (int r=0; r<romRank; ++r)
   {
-    LBSProblemIO::ReadFluxMoments(*this, "basis_"+std::to_string(r), false);
+    LBSSolverIO::ReadFluxMoments(*this, "basis_"+std::to_string(r), false);
     for (int dof=0; dof<local_node_count_; ++dof)
     {
       AU_(dof,r) = phi_old_local_[dof];
@@ -550,7 +550,7 @@ opensn::Vector<double>
 LBSProblem::LoadRHS()
 {
   opensn::Vector<double> b_(local_node_count_);
-  LBSProblemIO::ReadFluxMoments(*this, "rhs", false);
+  LBSSolverIO::ReadFluxMoments(*this, "rhs", false);
   b_ = phi_old_local_;
   return b_;
 }
@@ -913,10 +913,10 @@ LBSProblem::SetOptions(const InputParameters& input)
       }
     }
 
-    else if (spec.Name() == "param_id")
+    else if (spec.GetName() == "param_id")
       options_.param_id = spec.GetValue<int>();
 
-    else if (spec.Name() == "phase")
+    else if (spec.GetName() == "phase")
       options_.phase = spec.GetValue<std::string>();
   } // for p
 

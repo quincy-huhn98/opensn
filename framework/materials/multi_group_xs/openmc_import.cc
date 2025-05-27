@@ -6,6 +6,7 @@
 #include "framework/utils/hdf_utils.h"
 #include <numeric>
 #include <algorithm>
+#include <iomanip>
 
 namespace opensn
 {
