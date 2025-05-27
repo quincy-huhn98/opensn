@@ -8,6 +8,7 @@
 #include "framework/utils/utils.h"
 #include <numeric>
 #include <algorithm>
+#include <iomanip>
 
 namespace opensn
 {
