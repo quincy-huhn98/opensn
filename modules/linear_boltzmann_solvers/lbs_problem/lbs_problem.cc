@@ -21,6 +21,8 @@
 #include "framework/runtime.h"
 #include "caliper/cali.h"
 #include "modules/linear_boltzmann_solvers/lbs_problem/volumetric_source/volumetric_source.h"
+#include "linalg/BasisGenerator.h"
+#include "linalg/BasisReader.h"
 #include <algorithm>
 #include <iomanip>
 #include <fstream>
@@ -430,6 +432,53 @@ LBSProblem::GetPowerFieldFunction() const
   return field_functions_[power_gen_fieldfunc_local_handle_];
 }
 
+void
+LBSProblem::TakeSample(int id)
+{
+  bool update_right_SV = false;
+  CAROM::Options* options;
+  CAROM::BasisGenerator *generator;
+  int max_num_snapshots = 100;
+  bool isIncremental = false;
+  const std::string basisName = "basis";
+  const std::string basisFileName = basisName + std::to_string(id);
+
+  options = new CAROM::Options(local_node_count_, max_num_snapshots,
+                                     update_right_SV);
+  generator = new CAROM::BasisGenerator(*options, isIncremental, basisFileName);
+
+
+  bool addSample = generator->takeSample(phi_new_local_.data());
+  generator->writeSnapshot();
+  delete generator;
+  delete options;
+}
+
+void
+LBSProblem::MergePhase(int nsnaps)
+{
+  bool update_right_SV = false;
+  CAROM::Options* options;
+  CAROM::BasisGenerator *generator;
+  int max_num_snapshots = 100;
+  bool isIncremental = false;
+  const std::string basisName = "basis";
+
+  options = new CAROM::Options(local_node_count_, max_num_snapshots,
+                                     update_right_SV);
+  generator = new CAROM::BasisGenerator(*options, isIncremental, basisName);
+
+  for (int paramID=0; paramID<nsnaps; ++paramID)
+  {
+    std::string snapshot_filename = basisName + std::to_string(
+                                        paramID) + "_snapshot";
+    generator->loadSamples(snapshot_filename,"snapshot");
+  }
+  generator->endSamples(); // save the merged basis file
+  delete generator;
+  delete options;
+}
+
 InputParameters
 LBSProblem::GetOptionsBlock()
 {
@@ -529,6 +578,8 @@ LBSProblem::GetOptionsBlock()
                                  AllowableRangeList::New({"l2", "pointwise"}));
   params.ConstrainParameterRange("field_function_prefix_option",
                                  AllowableRangeList::New({"prefix", "solver_name"}));
+  params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
+  params.AddOptionalParameter("phase", "offline", "The phase (offline, online, or merge) for ROM purposes.");
 
   return params;
 }
@@ -756,6 +807,12 @@ LBSProblem::SetOptions(const InputParameters& input)
           volumetric_sources_.back()->Initialize(*this);
       }
     }
+
+    else if (spec.Name() == "param_id")
+      options_.param_id = spec.GetValue<int>();
+
+    else if (spec.Name() == "phase")
+      options_.phase = spec.GetValue<std::string>();
   } // for p
 
   if (options_.restart_writes_enabled)
