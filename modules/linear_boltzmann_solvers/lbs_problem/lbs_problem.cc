@@ -10,6 +10,7 @@
 #include "modules/linear_boltzmann_solvers/lbs_problem/acceleration/diffusion_mip_solver.h"
 #include "modules/linear_boltzmann_solvers/lbs_problem/groupset/lbs_groupset.h"
 #include "modules/linear_boltzmann_solvers/lbs_problem/point_source/point_source.h"
+#include "modules/linear_boltzmann_solvers/lbs_problem/io/lbs_problem_io.h"
 #include "framework/math/spatial_discretization/finite_element/piecewise_linear/piecewise_linear_discontinuous.h"
 #include "framework/materials/multi_group_xs/multi_group_xs.h"
 #include "framework/mesh/mesh_continuum/mesh_continuum.h"
@@ -486,8 +487,8 @@ LBSProblem::ReadBasis()
   CAROM::BasisReader reader(basisName);
   spatialbasis = reader.getSpatialBasis();
   int numRowRB = spatialbasis->numRows();
-  romRank = numRowRB;
-  spatialbasis->transpose();
+  int numColumnRB = spatialbasis->numColumns();
+  romRank = numColumnRB;
 }
 
 void
@@ -499,24 +500,87 @@ LBSProblem::OperatorAction()
     auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
     auto scope = gs_context_ptr->lhs_src_scope;
     DenseMatrix<double> AOp;
-    for (int r=0; r<1; ++r)
+    std::string baseName = "mode_";
+    for (int r=0; r<romRank; ++r)
     {
       auto basis = spatialbasis->getColumn(r);
-      phi_old_local_ = std::vector<double>(*basis->getData());
+      basis->gather();
+
+      std::vector<double> basis_local_;
+
+      for (size_t i = 0; i < basis->dim(); ++i) {
+          basis_local_.push_back(basis->item(i));
+      }
+      phi_new_local_ = basis_local_;
+      LBSProblemIO::WriteFluxMoments(*this,"basis_"+std::to_string(r));
 
       auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
-      gs_context_ptr->set_source_function(groupset, q_moments_local_, phi_old_local_, scope);
-
+      gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, basis_local_, scope);
       gs_context_ptr->ApplyInverseTransportOperator(scope);
-      VecAYPX(phi_old_local_, -1.0, phi_new_local_)
+      phi_new_local_ = basis_local_ - phi_new_local_;
+      LBSProblemIO::WriteFluxMoments(*this,baseName+std::to_string(r));
     }
 
     // Calculate RHS
-    auto scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
-    gs_context_ptr->set_source_function(groupset, q_moments_local_, phi_old_local_, scope);
+    scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+    gs_context_ptr->set_source_function(groupsets_[0], q_moments_local_, phi_old_local_, scope);
 
     // Apply transport operator
     gs_context_ptr->ApplyInverseTransportOperator(scope);
+    LBSProblemIO::WriteFluxMoments(*this,"rhs");
+  }
+}
+
+DenseMatrix<double>
+LBSProblem::AssembleAU()
+{
+  DenseMatrix<double> AU_(local_node_count_, romRank);
+  for (int r=0; r<romRank; ++r)
+  {
+    LBSProblemIO::ReadFluxMoments(*this, "basis_"+std::to_string(r), false);
+    for (int dof=0; dof<local_node_count_; ++dof)
+    {
+      AU_(dof,r) = phi_old_local_[dof];
+    }
+  }
+  return AU_;
+}
+
+opensn::Vector<double>
+LBSProblem::LoadRHS()
+{
+  opensn::Vector<double> b_(local_node_count_);
+  LBSProblemIO::ReadFluxMoments(*this, "rhs", false);
+  b_ = phi_old_local_;
+  return b_;
+}
+
+void
+LBSProblem::SolveROM(DenseMatrix<double> AU_, opensn::Vector<double> b_)
+{
+  /// reusing storage
+  DenseMatrix<double> AU_T = AU_.Transposed(); // AU_T
+  b_ = Mult(AU_T, b_); // AU_T b
+  DenseMatrix<double> Ar = Mult(AU_T, AU_); // AU_T AU
+  // solve AU_T AU c = AU_T b
+  Ar = Inverse(Ar);
+
+  opensn::Vector<double> c(romRank);
+  c = Ar.Mult(b_);
+
+  phi_new_local_.assign(phi_new_local_.size(), 0.0);
+  for (int r=0; r<romRank; ++r)
+  {
+    auto basis = spatialbasis->getColumn(r);
+    basis->gather();
+
+    std::vector<double> basis_local_;
+
+    for (size_t i = 0; i < basis->dim(); ++i) {
+        basis_local_.push_back(basis->item(i));
+    }
+
+    phi_new_local_ = phi_new_local_ + Mult(basis_local_, c(r));
   }
 }
 

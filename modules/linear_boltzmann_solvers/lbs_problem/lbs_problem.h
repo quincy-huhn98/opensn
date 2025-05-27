@@ -305,6 +305,15 @@ public:
   /// Perform the operator action of the sweep onto the reduced basis
   void OperatorAction();
 
+  /// Load individual vectors of AU into a single matrix
+  DenseMatrix<double> AssembleAU();
+
+  /// Load the rhs from h5
+  opensn::Vector<double> LoadRHS();
+
+  /// Assemble the reduced system and solve
+  void SolveROM(DenseMatrix<double> AU_, opensn::Vector<double> b_);
+
 protected:
   /// Performs general input checks before initialization continues.
   virtual void PerformInputChecks();
@@ -387,6 +396,7 @@ protected:
 
   CAROM::Matrix* spatialbasis;
   int romRank;
+  opensn::Vector<double> b_;
 
   /// Time integration parameter meant to be set by an executor
   std::shared_ptr<const TimeIntegration> time_integration_ = nullptr;
