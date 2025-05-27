@@ -92,8 +92,10 @@ option(OPENSN_WITH_PYTHON "Build with python support" ON)
 option(OPENSN_WITH_PYTHON_MODULE "Build with python module" OFF)
 
 if(OPENSN_WITH_PYTHON_MODULE)
-  set(OPENSN_WITH_PYTHON ON CACHE BOOL "Python support requested for building module" FORCE)
+    set(OPENSN_WITH_PYTHON ON CACHE BOOL "Python support requested for building module" FORCE)
 endif()
+
+option(OPENSN_WITH_LIBROM "Build with libROM support" OFF)
 
 # dependencies
 find_package(MPI REQUIRED)
@@ -103,6 +105,11 @@ find_package(Boost CONFIG)
 if (NOT Boost_FOUND)
   message(STATUS "Boost CONFIG not found, falling back to module mode")
   find_package(Boost REQUIRED)
+endif()
+
+if(OPENSN_WITH_LIBROM)
+    find_library(LIBROM_LIBRARY NAMES ROM PATHS ENV LIBROM_DIR REQUIRED)
+    find_path(LIBROM_INCLUDE_DIR NAMES librom.h PATHS ENV LIBROM_DIR)
 endif()
 
 find_package(VTK QUIET)
@@ -237,6 +244,7 @@ target_include_directories(libopensn
     $<BUILD_INTERFACE:${caliper_INCLUDE_DIR}>
     $<BUILD_INTERFACE:${PETSC_INCLUDE_DIR}>
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+    $<BUILD_INTERFACE:${LIBROM_INCLUDE_DIR}>
 )
 if (OPENSN_WITH_CUDA)
   target_include_directories(libopensncuda PUBLIC $<BUILD_INTERFACE:${MPI_CXX_INCLUDE_DIRS}>)
@@ -274,10 +282,15 @@ target_link_libraries(libopensn
     caliper
     ${HDF5_LIBRARIES}
     MPI::MPI_CXX
+    $<$<BOOL:${OPENSN_WITH_LIBROM}>:${LIBROM_LIBRARY}>
 )
 if (OPENSN_WITH_CUDA)
   target_link_libraries(libopensncuda PRIVATE ${CUDA_LIBRARIES} CUDA::cublas)
   target_link_libraries(libopensn INTERFACE libopensncuda)
+endif()
+
+if (OPENSN_WITH_LIBROM)
+    target_compile_definitions(libopensn PRIVATE OPENSN_WITH_LIBROM)
 endif()
 
 target_compile_options(libopensn PRIVATE ${OPENSN_CXX_FLAGS})
