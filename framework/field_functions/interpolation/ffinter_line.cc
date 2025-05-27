@@ -10,6 +10,7 @@
 #include "framework/logging/log.h"
 #include "framework/runtime.h"
 #include <fstream>
+#include <iomanip>
 
 namespace opensn
 {

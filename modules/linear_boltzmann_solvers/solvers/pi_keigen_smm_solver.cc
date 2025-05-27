@@ -18,6 +18,7 @@
 #include "framework/runtime.h"
 #include <memory>
 #include <numeric>
+#include <iomanip>
 
 namespace opensn
 {
