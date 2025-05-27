@@ -13,6 +13,7 @@
 #include "framework/mesh/mesh_continuum/mesh_continuum.h"
 #include "framework/math/linear_solver/linear_solver.h"
 #include "framework/math/spatial_discretization/finite_element/unit_cell_matrices.h"
+#include "linalg/Matrix.h"
 #include <petscksp.h>
 #include <any>
 #include <chrono>
@@ -236,6 +237,12 @@ public:
   /// Load snapshots and perform SVD
   void MergePhase(int nsnaps);
 
+  /// Load the basis from h5
+  void ReadBasis();
+
+  /// Perform the operator action of the sweep onto the reduced basis
+  void OperatorAction();
+
 private:
   /// Initialize groupsets
   void InitializeGroupsets(const InputParameters& params);
@@ -323,6 +330,9 @@ protected:
 
   std::map<std::pair<size_t, size_t>, size_t> phi_field_functions_local_map_;
   size_t power_gen_fieldfunc_local_handle_ = 0;
+
+  CAROM::Matrix* spatialbasis;
+  int romRank;
 
   /// Time integration parameter meant to be set by an executor
   std::shared_ptr<const TimeIntegration> time_integration_ = nullptr;

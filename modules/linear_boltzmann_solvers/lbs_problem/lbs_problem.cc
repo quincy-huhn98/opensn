@@ -474,6 +474,47 @@ LBSProblem::MergePhase(int nsnaps)
   delete options;
 }
 
+void
+LBSProblem::ReadBasis()
+{
+  const std::string basisName = "basis";
+  CAROM::BasisReader reader(basisName);
+  spatialbasis = reader.getSpatialBasis();
+  int numRowRB = spatialbasis->numRows();
+  romRank = numRowRB;
+  spatialbasis->transpose();
+}
+
+void
+LBSProblem::OperatorAction()
+{
+  for (auto& solver : wgs_solvers_)
+  {
+    auto raw_context = solver->GetContext();
+    auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
+    auto scope = gs_context_ptr->lhs_src_scope;
+    DenseMatrix<double> AOp;
+    for (int r=0; r<1; ++r)
+    {
+      auto basis = spatialbasis->getColumn(r);
+      phi_old_local_ = std::vector<double>(*basis->getData());
+
+      auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+      gs_context_ptr->set_source_function(groupset, q_moments_local_, phi_old_local_, scope);
+
+      gs_context_ptr->ApplyInverseTransportOperator(scope);
+      VecAYPX(phi_old_local_, -1.0, phi_new_local_)
+    }
+
+    // Calculate RHS
+    auto scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+    gs_context_ptr->set_source_function(groupset, q_moments_local_, phi_old_local_, scope);
+
+    // Apply transport operator
+    gs_context_ptr->ApplyInverseTransportOperator(scope);
+  }
+}
+
 InputParameters
 LBSProblem::GetOptionsBlock()
 {
