@@ -202,6 +202,9 @@ struct LBSOptions
   std::string field_function_prefix_option = "prefix";
   std::string field_function_prefix; // Default is empty
 
+  int param_id = 0;
+  std::string phase = "offline";
+
   LBSOptions() = default;
 };
 

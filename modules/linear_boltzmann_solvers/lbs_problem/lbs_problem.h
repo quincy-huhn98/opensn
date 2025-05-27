@@ -230,6 +230,12 @@ public:
    */
   virtual void ReorientAdjointSolution() {};
 
+  /// Save current Phi in the basis generator
+  void TakeSample(int id);
+
+  /// Load snapshots and perform SVD
+  void MergePhase(int nsnaps);
+
 private:
   /// Initialize groupsets
   void InitializeGroupsets(const InputParameters& params);
