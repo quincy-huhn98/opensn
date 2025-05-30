@@ -526,57 +526,238 @@ LBSProblem::OperatorAction()
   }
 }
 
-DenseMatrix<double>
+Mat 
 LBSProblem::AssembleAU()
 {
-  DenseMatrix<double> AU_(local_node_count_, romRank);
+  Mat AU;
+  MatCreateSeqDense(PETSC_COMM_SELF, local_node_count_, romRank, NULL, &AU);
+
   for (int r=0; r<romRank; ++r)
   {
     LBSSolverIO::ReadFluxMoments(*this, "basis_"+std::to_string(r), false);
     for (int dof=0; dof<local_node_count_; ++dof)
     {
-      AU_(dof,r) = phi_old_local_[dof];
+      MatSetValue(AU, dof, r, phi_old_local_[dof], INSERT_VALUES);
     }
   }
-  return AU_;
+
+  MatAssemblyBegin(AU, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(AU, MAT_FINAL_ASSEMBLY);
+
+  return AU;
 }
 
-opensn::Vector<double>
+Vec 
 LBSProblem::LoadRHS()
 {
-  opensn::Vector<double> b_(local_node_count_);
+  Vec b;
+  VecCreateSeq(PETSC_COMM_SELF, local_node_count_, &b);
+
   LBSSolverIO::ReadFluxMoments(*this, "rhs", false);
-  b_ = phi_old_local_;
-  return b_;
+  for (int dof=0; dof<local_node_count_; ++dof)
+  {
+    VecSetValue(b, dof, phi_old_local_[dof], INSERT_VALUES);
+  }
+
+  VecAssemblyBegin(b);
+  VecAssemblyEnd(b);
+
+  return b;
 }
 
-void
-LBSProblem::SolveROM(DenseMatrix<double> AU_, opensn::Vector<double> b_)
+void 
+LBSProblem::AssembleROM(Mat AU, Vec b,
+                        const std::string& Ar_filename,
+                        const std::string& rhs_filename)
 {
-  /// reusing storage
-  DenseMatrix<double> AU_T = AU_.Transposed(); // AU_T
-  b_ = Mult(AU_T, b_); // AU_T b
-  DenseMatrix<double> Ar = Mult(AU_T, AU_); // AU_T AU
-  // solve AU_T AU c = AU_T b
-  Ar = Inverse(Ar);
+  Mat A_T;
+  MatTranspose(AU, MAT_INITIAL_MATRIX, &A_T);
 
-  opensn::Vector<double> c(romRank);
-  c = Ar.Mult(b_);
+  // Compute rhs = AU^T * b
+  Vec rhs;
+  VecCreateSeq(PETSC_COMM_SELF, romRank, &rhs);
+  MatMult(A_T, b, rhs);
 
+  // Compute Ar = AU^T * AU
+  Mat Ar;
+  MatMatMult(A_T, AU, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &Ar);
+
+  // Save Ar to binary file
+  PetscViewer viewer_Ar;
+  PetscViewerBinaryOpen(PETSC_COMM_SELF, Ar_filename.c_str(), FILE_MODE_WRITE, &viewer_Ar);
+  MatView(Ar, viewer_Ar);
+  PetscViewerDestroy(&viewer_Ar);
+
+  // Save rhs to binary file
+  PetscViewer viewer_rhs;
+  PetscViewerBinaryOpen(PETSC_COMM_SELF, rhs_filename.c_str(), FILE_MODE_WRITE, &viewer_rhs);
+  VecView(rhs, viewer_rhs);
+  PetscViewerDestroy(&viewer_rhs);
+
+  // Cleanup
+  VecDestroy(&rhs);
+  MatDestroy(&Ar);
+  MatDestroy(&A_T);
+}
+
+void 
+LBSProblem::SolveROM(std::unique_ptr<CAROM::Matrix>& Ar_interp,
+                     std::unique_ptr<CAROM::Vector>& rhs_interp)
+{
+  // Convert CAROM::Matrix to PETSc Mat
+  Mat Ar;
+  int N = Ar_interp->numRows();
+  MatCreateSeqDense(PETSC_COMM_SELF, N, N, nullptr, &Ar);
+  for (int i = 0; i < N; ++i)
+    for (int j = 0; j < N; ++j)
+      MatSetValue(Ar, i, j, (*Ar_interp)(i, j), INSERT_VALUES);
+  MatAssemblyBegin(Ar, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(Ar, MAT_FINAL_ASSEMBLY);
+
+  // Convert CAROM::Vector to PETSc Vec
+  Vec rhs;
+  VecCreateSeq(PETSC_COMM_SELF, N, &rhs);
+  for (int i = 0; i < N; ++i)
+    VecSetValue(rhs, i, (*rhs_interp)(i), INSERT_VALUES);
+  VecAssemblyBegin(rhs);
+  VecAssemblyEnd(rhs);
+
+  // Solve Ar * c = rhs
+  Vec c;
+  VecDuplicate(rhs, &c);
+
+  KSP ksp;
+  KSPCreate(PETSC_COMM_SELF, &ksp);
+  KSPSetOperators(ksp, Ar, Ar);
+  KSPSetType(ksp, KSPPREONLY);
+  PC pc;
+  KSPGetPC(ksp, &pc);
+  PCSetType(pc, PCLU);
+  KSPSetFromOptions(ksp);
+  KSPSolve(ksp, rhs, c);
+
+  // Reconstruct solution from basis and coefficients
   phi_new_local_.assign(phi_new_local_.size(), 0.0);
-  for (int r=0; r<romRank; ++r)
+  const PetscScalar* c_arr;
+  VecGetArrayRead(c, &c_arr);
+  for (int r = 0; r < romRank; ++r)
   {
     auto basis = spatialbasis->getColumn(r);
-    basis->gather();
-
-    std::vector<double> basis_local_;
-
-    for (size_t i = 0; i < basis->dim(); ++i) {
-        basis_local_.push_back(basis->item(i));
-    }
-
-    phi_new_local_ = phi_new_local_ + Mult(basis_local_, c(r));
+    basis->gather();  // If needed for non-local data
+    for (size_t i = 0; i < basis->dim(); ++i)
+      phi_new_local_[i] += c_arr[r] * basis->item(i);
   }
+  VecRestoreArrayRead(c, &c_arr);
+
+  // Cleanup
+  VecDestroy(&c);
+  VecDestroy(&rhs);
+  MatDestroy(&Ar);
+  KSPDestroy(&ksp);
+}
+
+CAROM::Matrix*
+ConvertPETScMatToCAROM(Mat petsc_mat)
+{
+  PetscInt m, n;
+  MatGetSize(petsc_mat, &m, &n);
+  CAROM::Matrix* mat = new CAROM::Matrix(m, n, false);
+
+  for (PetscInt j = 0; j < n; ++j)
+  {
+    for (PetscInt i = 0; i < m; ++i)
+      {
+        PetscScalar val = 0.0;
+        MatGetValues(petsc_mat, 1, &i, 1, &j, &val);
+        mat->item(i, j) = val;
+      }
+  }
+
+  return mat;
+}
+
+CAROM::Vector*
+ConvertPETScVecToCAROM(Vec petsc_vec)
+{
+  PetscInt n;
+  VecGetSize(petsc_vec, &n);
+  CAROM::Vector* vec = new CAROM::Vector(n, false);
+
+  const PetscScalar* petsc_array;
+  VecGetArrayRead(petsc_vec, &petsc_array);
+  for (PetscInt i = 0; i < n; ++i)
+      (*vec)(i) = petsc_array[i];
+  VecRestoreArrayRead(petsc_vec, &petsc_array);
+
+  return vec;
+}
+
+void 
+LBSProblem::InterpolateArAndRHS(
+    CAROM::Vector* desired_point,
+    std::unique_ptr<CAROM::Matrix>& Ar_interp,
+    std::unique_ptr<CAROM::Vector>& rhs_interp)
+{
+  std::vector<CAROM::Matrix*> Ar_matrices;
+  std::vector<CAROM::Vector*> rhs_vectors;
+
+  // Load PETSc matrices/vectors and convert
+  for (size_t i = 0; i < param_points_.size(); ++i)
+  {
+    Mat Ar;
+    Vec rhs;
+    PetscViewer viewer;
+    const std::string& Ar_filename = "rom_system_Ar_" + std::to_string(i);
+    const std::string& rhs_filename = "rom_system_rhs_" + std::to_string(i);
+
+    // Load Ar
+    PetscViewerBinaryOpen(PETSC_COMM_SELF, Ar_filename.c_str(), FILE_MODE_READ, &viewer);
+    MatCreate(PETSC_COMM_SELF, &Ar);
+    MatLoad(Ar, viewer);
+    PetscViewerDestroy(&viewer);
+
+    // Load rhs
+    PetscViewerBinaryOpen(PETSC_COMM_SELF, rhs_filename.c_str(), FILE_MODE_READ, &viewer);
+    VecCreate(PETSC_COMM_SELF, &rhs);
+    VecLoad(rhs, viewer);
+    PetscViewerDestroy(&viewer);
+
+    // Convert to CAROM
+    Ar_matrices.push_back(ConvertPETScMatToCAROM(Ar));
+    rhs_vectors.push_back(ConvertPETScVecToCAROM(rhs));
+
+    MatDestroy(&Ar);
+    VecDestroy(&rhs);
+  }
+
+  // Make Identity Rotations
+  std::vector<CAROM::Matrix*> rotations;
+  int rom_dim = Ar_matrices[0]->numRows(); // reduced dimension
+
+  for (size_t i = 0; i < Ar_matrices.size(); ++i)
+  {
+    CAROM::Matrix* I = new CAROM::Matrix(rom_dim, rom_dim, false);
+    for (int j = 0; j < rom_dim; ++j)
+      I->item(j, j) = 1.0;
+    rotations.push_back(I);
+  }
+
+  int ref_index = getClosestPoint(param_points_, desired_point);
+
+  // Interpolate Ar
+  CAROM::MatrixInterpolator Ar_interp_obj(param_points_, rotations, Ar_matrices,
+                                          ref_index, "R", "G", "LS", 0.9);
+  Ar_interp.reset(Ar_interp_obj.interpolate(desired_point));
+  // if (!Ar_interp)
+  // {
+  //   std::cerr << "Error: Ar_interp returned nullptr during interpolation.\n";
+  //   return;
+  // }
+
+  // Interpolate rhs
+  CAROM::VectorInterpolator rhs_interp_obj(param_points_, rotations, rhs_vectors,
+                                           ref_index, "G", "LS", 0.9);
+  rhs_interp.reset(rhs_interp_obj.interpolate(desired_point));
 }
 
 InputParameters
@@ -658,6 +839,7 @@ LBSProblem::GetOptionsBlock()
                                  AllowableRangeList::New({"prefix", "solver_name"}));
   params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
   params.AddOptionalParameter("phase", "offline", "The phase (offline, online, or merge) for ROM purposes.");
+  // params.AddOptionalParameterArray<double>("params", {}, "An array of parameters for ROM.");
 
   return params;
 }
@@ -785,6 +967,17 @@ LBSProblem::SetOptions(const InputParameters& input)
 
     else if (spec.GetName() == "phase")
       options_.phase = spec.GetValue<std::string>();
+
+    // else if (spec.GetName() == "params")
+    // {
+    //   spec.RequireBlockTypeIs(ParameterBlockType::ARRAY);
+    //   for (const auto& sub_param : spec)
+    //   {
+    //     auto vec = std::make_unique<CAROM::Vector>(sub_param.GetValue<double>(), false);
+    //     // CAROM::Vector param_point(sub_param.GetValue<double>(), false);
+    //     param_points_.push_back(vec.get());
+    //   }
+    // }
   } // for p
 
   if (options_.restart_writes_enabled)

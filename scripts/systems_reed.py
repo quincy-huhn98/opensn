@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # Add cross sections to materials
     total = [50., 5., 0., 1., 1.]
-    c = [0., 0., 0., 0, 0]
+    c = [0., 0., 0., scatt, scatt]
     xs_map = len(total) * [None]
     for imat in range(Nmat):
         xs_ = MultiGroupXS()
@@ -62,39 +62,39 @@ if __name__ == "__main__":
 
     # LBS block option
     num_groups = 1
-    phys_off = DiscreteOrdinatesProblem(
-        mesh=grid,
-        num_groups=num_groups,
-        groupsets=[
-            {
-                "groups_from_to": (0, num_groups - 1),
-                "angular_quadrature": gl_quad,
-                "inner_linear_method": "petsc_gmres",
-                "l_abs_tol": 1.0e-9,
-                "l_max_its": 300,
-                "gmres_restart_interval": 30,
-            },
-        ],
-        xs_map=xs_map,
-        options={
-            "scattering_order": 0,
-            "spatial_discretization": "pwld",
-            "boundary_conditions": [
-                {"name": "zmin", "type": "vacuum"},
-                {"name": "zmax", "type": "vacuum"}
-            ],
-            "volumetric_sources": [src0, src1],
-            "param_id": 0,
-            "phase": "offline"
-        }
-    )
+    # phys_off = DiscreteOrdinatesProblem(
+    #     mesh=grid,
+    #     num_groups=num_groups,
+    #     groupsets=[
+    #         {
+    #             "groups_from_to": (0, num_groups - 1),
+    #             "angular_quadrature": gl_quad,
+    #             "inner_linear_method": "petsc_gmres",
+    #             "l_abs_tol": 1.0e-9,
+    #             "l_max_its": 300,
+    #             "gmres_restart_interval": 30,
+    #         },
+    #     ],
+    #     xs_map=xs_map,
+    #     options={
+    #         "scattering_order": 0,
+    #         "spatial_discretization": "pwld",
+    #         "boundary_conditions": [
+    #             {"name": "zmin", "type": "vacuum"},
+    #             {"name": "zmax", "type": "vacuum"}
+    #         ],
+    #         "volumetric_sources": [src0, src1],
+    #         "param_id": 0,
+    #         "phase": "offline"
+    #     }
+    # )
 
-    # Initialize and execute solver
-    ss_solver_off = SteadyStateSolver(lbs_problem=phys_off)
-    ss_solver_off.Initialize()
-    ss_solver_off.Execute()
+    # # Initialize and execute solver
+    # ss_solver_off = SteadyStateSolver(lbs_problem=phys_off)
+    # ss_solver_off.Initialize()
+    # ss_solver_off.Execute()
 
-    phys_off.WriteFluxMoments("fom")
+    # phys_off.WriteFluxMoments("fom")
 
     phys_on = DiscreteOrdinatesProblem(
         mesh=grid,
@@ -118,8 +118,8 @@ if __name__ == "__main__":
                 {"name": "zmax", "type": "vacuum"}
             ],
             "volumetric_sources": [src0, src1],
-            "param_id": 0,
-            "phase": "online"
+            "param_id": id,
+            "phase": "systems"
         }
     )
 

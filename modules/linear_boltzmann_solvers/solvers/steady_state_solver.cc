@@ -82,13 +82,35 @@ if (options.phase == "offline")
   {
     lbs_problem_->MergePhase(options.param_id);
   }
-  if (options.phase == "online")
+  if (options.phase == "systems")
   {
     lbs_problem_->ReadBasis();
     lbs_problem_->OperatorAction();
-    DenseMatrix<double> AU_ = lbs_problem_->AssembleAU();
-    opensn::Vector<double> b_ = lbs_problem_->LoadRHS();
-    lbs_problem_->SolveROM(AU_, b_);
+    Mat AU_ = lbs_problem_->AssembleAU();
+    Vec b_ = lbs_problem_->LoadRHS();
+    const std::string& Ar_filename = "rom_system_Ar_" + std::to_string(options.param_id);
+    const std::string& rhs_filename = "rom_system_rhs_" + std::to_string(options.param_id);
+    lbs_problem_->AssembleROM(AU_, b_, Ar_filename, rhs_filename);
+  }
+  if (options.phase == "online")
+  {
+    lbs_problem_->ReadBasis();
+    std::vector<double> params = {0.0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99};
+    for (const auto& sub_param : params)
+    {
+      CAROM::Vector* vec = new CAROM::Vector(1, false);
+      (*vec)(0) = sub_param;
+      lbs_problem_->param_points_.push_back(vec);
+    }
+
+    CAROM::Vector* new_point = new CAROM::Vector(1, false);
+    (*new_point)(0) = 0.0;
+    std::unique_ptr<CAROM::Matrix> Ar_interp;
+    std::unique_ptr<CAROM::Vector> rhs_interp;
+
+    lbs_problem_->InterpolateArAndRHS(new_point, Ar_interp, rhs_interp);
+    std::cout << "after interpolate\n";
+    lbs_problem_->SolveROM(Ar_interp, rhs_interp);
   }
 }
 

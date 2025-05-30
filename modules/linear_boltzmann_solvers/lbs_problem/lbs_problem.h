@@ -14,9 +14,18 @@
 #include "framework/math/linear_solver/linear_solver.h"
 #include "framework/math/spatial_discretization/finite_element/unit_cell_matrices.h"
 #include "linalg/Matrix.h"
+#include "linalg/Vector.h"
+#include "algo/manifold_interp/MatrixInterpolator.h"
+#include "algo/manifold_interp/VectorInterpolator.h"
+#include <petscmat.h>
+#include <petscvec.h>
 #include <petscksp.h>
 #include <any>
 #include <chrono>
+#include <memory>
+#include <vector>
+#include <string>
+#include <limits>
 
 namespace opensn
 {
@@ -244,13 +253,24 @@ public:
   void OperatorAction();
 
   /// Load individual vectors of AU into a single matrix
-  DenseMatrix<double> AssembleAU();
+  Mat AssembleAU();
 
   /// Load the rhs from h5
-  opensn::Vector<double> LoadRHS();
+  Vec LoadRHS();
 
-  /// Assemble the reduced system and solve
-  void SolveROM(DenseMatrix<double> AU_, opensn::Vector<double> b_);
+  /// Assemble the reduced system and save to file
+  void AssembleROM(Mat AU_, Vec b_, const std::string& Ar_filename,
+                                    const std::string& rhs_filename);
+
+  /// Solve given LHS and RHS of a ROM system
+  void SolveROM(std::unique_ptr<CAROM::Matrix>& Ar_interp,
+                std::unique_ptr<CAROM::Vector>& rhs_interp);
+
+  /// Load reduced systems from file and interpolate
+  void InterpolateArAndRHS(
+    CAROM::Vector* desired_point,
+    std::unique_ptr<CAROM::Matrix>& Ar_interp,
+    std::unique_ptr<CAROM::Vector>& rhs_interp);
 
 private:
   /// Initialize groupsets
@@ -344,6 +364,7 @@ protected:
   int romRank;
   opensn::Vector<double> b_;
 
+
   /// Time integration parameter meant to be set by an executor
   std::shared_ptr<const TimeIntegration> time_integration_ = nullptr;
 
@@ -368,6 +389,7 @@ protected:
 public:
   static std::map<std::string, uint64_t> supported_boundary_names;
   static std::map<uint64_t, std::string> supported_boundary_ids;
+  std::vector<CAROM::Vector*> param_points_;
 
   /// Returns the input parameters for this object.
   static InputParameters GetInputParameters();
@@ -378,5 +400,10 @@ public:
 
   static InputParameters GetXSMapEntryBlock();
 };
+
+
+CAROM::Matrix* ConvertPETScMatToCAROM(Mat petsc_mat);
+
+CAROM::Vector* ConvertPETScVecToCAROM(Vec petsc_vec);
 
 } // namespace opensn
