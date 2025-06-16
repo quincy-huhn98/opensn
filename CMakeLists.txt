@@ -196,7 +196,7 @@ if (OPENSN_WITH_CUDA)
 endif()
 
 target_link_libraries(libopensn
-    PRIVATE
+    PUBLIC
     ${PETSC_LIBRARY}
     ${VTK_LIBRARIES}
     caliper
@@ -270,8 +270,8 @@ install(
 )
 
 install(
-    DIRECTORY ${CMAKE_SOURCE_DIR}/framework
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/opensn
+    DIRECTORY ${CMAKE_SOURCE_DIR}/framework/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/opensn/framework
     FILES_MATCHING PATTERN "*.h"
 )
 
@@ -282,8 +282,8 @@ install(
 )
 
 install(
-    DIRECTORY ${CMAKE_SOURCE_DIR}/external/mpicpp-lite
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/opensn
+    DIRECTORY ${CMAKE_SOURCE_DIR}/external/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/opensn/external
     FILES_MATCHING PATTERN "*.h"
 )
 
