@@ -432,58 +432,72 @@ void
 LBSProblem::TakeSample(int id)
 {
   bool update_right_SV = false;
-  CAROM::Options* options;
-  CAROM::BasisGenerator *generator;
   int max_num_snapshots = 100;
   bool isIncremental = false;
   const std::string basisName = "basis";
   const std::string basisFileName = basisName + std::to_string(id);
 
-  options = new CAROM::Options(local_node_count_, max_num_snapshots,
-                                     update_right_SV);
-  generator = new CAROM::BasisGenerator(*options, isIncremental, basisFileName);
+  CAROM::Options options(local_node_count_, max_num_snapshots, update_right_SV);
+  CAROM::BasisGenerator generator(options, isIncremental, basisFileName);
 
-
-  bool addSample = generator->takeSample(phi_new_local_.data());
-  generator->writeSnapshot();
-  delete generator;
-  delete options;
+  generator.takeSample(phi_new_local_.data());
+  generator.writeSnapshot();
 }
 
 void
 LBSProblem::MergePhase(int nsnaps)
 {
   bool update_right_SV = false;
-  CAROM::Options* options;
-  CAROM::BasisGenerator *generator;
   int max_num_snapshots = 100;
   bool isIncremental = false;
   const std::string basisName = "basis";
 
-  options = new CAROM::Options(local_node_count_, max_num_snapshots,
-                                     update_right_SV);
-  generator = new CAROM::BasisGenerator(*options, isIncremental, basisName);
+  CAROM::Options options(local_node_count_, max_num_snapshots, update_right_SV);
+  double tol = 1e-5;
+  options.setSingularValueTol(tol);
+  CAROM::BasisGenerator generator(options, isIncremental, basisName);
 
   for (int paramID=0; paramID<nsnaps; ++paramID)
   {
-    std::string snapshot_filename = basisName + std::to_string(
-                                        paramID) + "_snapshot";
-    generator->loadSamples(snapshot_filename,"snapshot");
+    std::string snapshot_filename = basisName + std::to_string(paramID) + "_snapshot";
+    generator.loadSamples(snapshot_filename, "snapshot");
   }
-  generator->endSamples(); // save the merged basis file
-  delete generator;
-  delete options;
+  generator.endSamples();
 }
 
 void
 LBSProblem::ReadBasis()
 {
   const std::string basisName = "basis";
-  CAROM::BasisReader reader(basisName);
-  spatialbasis = reader.getSpatialBasis();
+  static std::unique_ptr<CAROM::BasisReader> reader_ptr;
+  reader_ptr = std::make_unique<CAROM::BasisReader>(basisName);
+  spatialbasis = reader_ptr->getSpatialBasis();
   int numRowRB = spatialbasis->numRows();
   int numColumnRB = spatialbasis->numColumns();
   romRank = numColumnRB;
+}
+
+std::vector<double>
+LBSProblem::ReadParams()
+{
+  std::ifstream infile(options_.param_file);
+  std::vector<double> values;
+  std::string line;
+
+  if (!infile) {
+    std::cerr << "Error: Could not open the parameter file.\n";
+  }
+
+  while (std::getline(infile, line)) {
+    std::istringstream iss(line);
+    double value;
+    if (iss >> value) {
+      values.push_back(value);
+    }
+  }
+
+  infile.close();
+  return values;
 }
 
 void
@@ -534,7 +548,7 @@ LBSProblem::AssembleAU()
 
   for (int r=0; r<romRank; ++r)
   {
-    LBSSolverIO::ReadFluxMoments(*this, "basis_"+std::to_string(r), false);
+    LBSSolverIO::ReadFluxMoments(*this, "mode_"+std::to_string(r), false);
     for (int dof=0; dof<local_node_count_; ++dof)
     {
       MatSetValue(AU, dof, r, phi_old_local_[dof], INSERT_VALUES);
@@ -601,8 +615,8 @@ LBSProblem::AssembleROM(Mat AU, Vec b,
 }
 
 void 
-LBSProblem::SolveROM(std::unique_ptr<CAROM::Matrix>& Ar_interp,
-                     std::unique_ptr<CAROM::Vector>& rhs_interp)
+LBSProblem::SolveROM(std::shared_ptr<CAROM::Matrix> Ar_interp,
+                     std::shared_ptr<CAROM::Vector> rhs_interp)
 {
   // Convert CAROM::Matrix to PETSc Mat
   Mat Ar;
@@ -656,12 +670,13 @@ LBSProblem::SolveROM(std::unique_ptr<CAROM::Matrix>& Ar_interp,
   KSPDestroy(&ksp);
 }
 
-CAROM::Matrix*
+std::shared_ptr<CAROM::Matrix>
 ConvertPETScMatToCAROM(Mat petsc_mat)
 {
   PetscInt m, n;
   MatGetSize(petsc_mat, &m, &n);
-  CAROM::Matrix* mat = new CAROM::Matrix(m, n, false);
+  std::shared_ptr<CAROM::Matrix> mat;
+  mat = std::make_shared<CAROM::Matrix>(m, n, false);
 
   for (PetscInt j = 0; j < n; ++j)
   {
@@ -676,12 +691,13 @@ ConvertPETScMatToCAROM(Mat petsc_mat)
   return mat;
 }
 
-CAROM::Vector*
+std::shared_ptr<CAROM::Vector>
 ConvertPETScVecToCAROM(Vec petsc_vec)
 {
   PetscInt n;
   VecGetSize(petsc_vec, &n);
-  CAROM::Vector* vec = new CAROM::Vector(n, false);
+  std::shared_ptr<CAROM::Vector> vec;
+  vec = std::make_shared<CAROM::Vector>(n, false);
 
   const PetscScalar* petsc_array;
   VecGetArrayRead(petsc_vec, &petsc_array);
@@ -694,12 +710,12 @@ ConvertPETScVecToCAROM(Vec petsc_vec)
 
 void 
 LBSProblem::InterpolateArAndRHS(
-    CAROM::Vector* desired_point,
-    std::unique_ptr<CAROM::Matrix>& Ar_interp,
-    std::unique_ptr<CAROM::Vector>& rhs_interp)
+    CAROM::Vector& desired_point,
+    std::shared_ptr<CAROM::Matrix>& Ar_interp,
+    std::shared_ptr<CAROM::Vector>& rhs_interp)
 {
-  std::vector<CAROM::Matrix*> Ar_matrices;
-  std::vector<CAROM::Vector*> rhs_vectors;
+  std::vector<std::shared_ptr<CAROM::Matrix>> Ar_matrices;
+  std::vector<std::shared_ptr<CAROM::Vector>> rhs_vectors;
 
   // Load PETSc matrices/vectors and convert
   for (size_t i = 0; i < param_points_.size(); ++i)
@@ -731,12 +747,13 @@ LBSProblem::InterpolateArAndRHS(
   }
 
   // Make Identity Rotations
-  std::vector<CAROM::Matrix*> rotations;
+  std::vector<std::shared_ptr<CAROM::Matrix>> rotations;
   int rom_dim = Ar_matrices[0]->numRows(); // reduced dimension
 
   for (size_t i = 0; i < Ar_matrices.size(); ++i)
   {
-    CAROM::Matrix* I = new CAROM::Matrix(rom_dim, rom_dim, false);
+    std::shared_ptr<CAROM::Matrix> I;
+    I = std::make_shared<CAROM::Matrix>(rom_dim, rom_dim, false);
     for (int j = 0; j < rom_dim; ++j)
       I->item(j, j) = 1.0;
     rotations.push_back(I);
@@ -744,20 +761,19 @@ LBSProblem::InterpolateArAndRHS(
 
   int ref_index = getClosestPoint(param_points_, desired_point);
 
-  // Interpolate Ar
-  CAROM::MatrixInterpolator Ar_interp_obj(param_points_, rotations, Ar_matrices,
-                                          ref_index, "R", "G", "LS", 0.9);
-  Ar_interp.reset(Ar_interp_obj.interpolate(desired_point));
-  // if (!Ar_interp)
-  // {
-  //   std::cerr << "Error: Ar_interp returned nullptr during interpolation.\n";
-  //   return;
-  // }
+  // Keep these as member variables (for test)
+  static std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
+  static std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
 
-  // Interpolate rhs
-  CAROM::VectorInterpolator rhs_interp_obj(param_points_, rotations, rhs_vectors,
-                                           ref_index, "G", "LS", 0.9);
-  rhs_interp.reset(rhs_interp_obj.interpolate(desired_point));
+  Ar_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
+    param_points_, rotations, Ar_matrices,
+    ref_index, "SPD", "G", "LS", 0.5, false);
+  rhs_interp_obj_ptr = std::make_unique<CAROM::VectorInterpolator>(
+    param_points_, rotations, rhs_vectors,
+    ref_index, "G", "LS", 0.5, false);
+
+  Ar_interp = Ar_interp_obj_ptr->interpolate(desired_point);
+  rhs_interp = rhs_interp_obj_ptr->interpolate(desired_point);
 }
 
 InputParameters
@@ -839,7 +855,8 @@ LBSProblem::GetOptionsBlock()
                                  AllowableRangeList::New({"prefix", "solver_name"}));
   params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
   params.AddOptionalParameter("phase", "offline", "The phase (offline, online, or merge) for ROM purposes.");
-  // params.AddOptionalParameterArray<double>("params", {}, "An array of parameters for ROM.");
+  params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");
+  params.AddOptionalParameter("new_point", 0.0, "New parameter point for ROM.");
 
   return params;
 }
@@ -968,16 +985,11 @@ LBSProblem::SetOptions(const InputParameters& input)
     else if (spec.GetName() == "phase")
       options_.phase = spec.GetValue<std::string>();
 
-    // else if (spec.GetName() == "params")
-    // {
-    //   spec.RequireBlockTypeIs(ParameterBlockType::ARRAY);
-    //   for (const auto& sub_param : spec)
-    //   {
-    //     auto vec = std::make_unique<CAROM::Vector>(sub_param.GetValue<double>(), false);
-    //     // CAROM::Vector param_point(sub_param.GetValue<double>(), false);
-    //     param_points_.push_back(vec.get());
-    //   }
-    // }
+    else if (spec.GetName() == "param_file")
+      options_.param_file = spec.GetValue<std::string>();
+
+    else if (spec.GetName() == "new_point")
+      options_.new_point = spec.GetValue<double>();
   } // for p
 
   if (options_.restart_writes_enabled)

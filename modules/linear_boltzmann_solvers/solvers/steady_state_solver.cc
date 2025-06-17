@@ -95,21 +95,20 @@ if (options.phase == "offline")
   if (options.phase == "online")
   {
     lbs_problem_->ReadBasis();
-    std::vector<double> params = {0.0, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99};
+    std::vector<double> params = lbs_problem_->ReadParams();
     for (const auto& sub_param : params)
     {
-      CAROM::Vector* vec = new CAROM::Vector(1, false);
-      (*vec)(0) = sub_param;
+      CAROM::Vector vec = CAROM::Vector(1, false);
+      vec(0) = sub_param;
       lbs_problem_->param_points_.push_back(vec);
     }
 
-    CAROM::Vector* new_point = new CAROM::Vector(1, false);
-    (*new_point)(0) = 0.0;
-    std::unique_ptr<CAROM::Matrix> Ar_interp;
-    std::unique_ptr<CAROM::Vector> rhs_interp;
+    CAROM::Vector new_point = CAROM::Vector(1, false);
+    new_point(0) = options.new_point;
+    std::shared_ptr<CAROM::Matrix> Ar_interp;
+    std::shared_ptr<CAROM::Vector> rhs_interp;
 
     lbs_problem_->InterpolateArAndRHS(new_point, Ar_interp, rhs_interp);
-    std::cout << "after interpolate\n";
     lbs_problem_->SolveROM(Ar_interp, rhs_interp);
   }
 }

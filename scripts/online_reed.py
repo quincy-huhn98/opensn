@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # Add cross sections to materials
     total = [50., 5., 0., 1., 1.]
-    c = [0., 0., 0., 0, 0]
+    c = [0., 0., 0., scatt, scatt]
     xs_map = len(total) * [None]
     for imat in range(Nmat):
         xs_ = MultiGroupXS()
@@ -58,7 +58,7 @@ if __name__ == "__main__":
     src1 = VolumetricSource(block_ids=[3], group_strength=[1.])
 
     # Angular Quadrature
-    gl_quad = GLProductQuadrature1DSlab(128)
+    gl_quad = GLProductQuadrature1DSlab(n_polar=128, scattering_order=0)
 
     # LBS block option
     num_groups = 1
@@ -119,7 +119,9 @@ if __name__ == "__main__":
             ],
             "volumetric_sources": [src0, src1],
             "param_id": 0,
-            "phase": "online"
+            "phase": "online",
+            "param_file": "sigmas.txt",
+            "new_point": scatt
         }
     )
 
