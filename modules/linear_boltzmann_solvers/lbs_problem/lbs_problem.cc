@@ -467,6 +467,8 @@ LBSProblem::MergePhase(int nsnaps)
 
   options = new CAROM::Options(local_node_count_, max_num_snapshots,
                                      update_right_SV);
+  double tol = 1e-5;
+  options->setSingularValueTol(tol);
   generator = new CAROM::BasisGenerator(*options, isIncremental, basisName);
 
   for (int paramID=0; paramID<nsnaps; ++paramID)
@@ -489,6 +491,29 @@ LBSProblem::ReadBasis()
   int numRowRB = spatialbasis->numRows();
   int numColumnRB = spatialbasis->numColumns();
   romRank = numColumnRB;
+}
+
+std::vector<double>
+LBSProblem::ReadParams()
+{
+  std::ifstream infile(options_.param_file);
+  std::vector<double> values;
+  std::string line;
+
+  if (!infile) {
+    std::cerr << "Error: Could not open the parameter file.\n";
+  }
+
+  while (std::getline(infile, line)) {
+    std::istringstream iss(line);
+    double value;
+    if (iss >> value) {
+      values.push_back(value);
+    }
+  }
+
+  infile.close();
+  return values;
 }
 
 void
@@ -539,7 +564,7 @@ LBSProblem::AssembleAU()
 
   for (int r=0; r<romRank; ++r)
   {
-    LBSSolverIO::ReadFluxMoments(*this, "basis_"+std::to_string(r), false);
+    LBSSolverIO::ReadFluxMoments(*this, "mode_"+std::to_string(r), false);
     for (int dof=0; dof<local_node_count_; ++dof)
     {
       MatSetValue(AU, dof, r, phi_old_local_[dof], INSERT_VALUES);
@@ -866,7 +891,8 @@ LBSProblem::GetOptionsBlock()
                                  AllowableRangeList::New({"prefix", "solver_name"}));
   params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
   params.AddOptionalParameter("phase", "offline", "The phase (offline, online, or merge) for ROM purposes.");
-  // params.AddOptionalParameterArray<double>("params", {}, "An array of parameters for ROM.");
+  params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");
+  params.AddOptionalParameter("new_point", 0.0, "New parameter point for ROM.");
 
   return params;
 }
@@ -1101,16 +1127,11 @@ LBSProblem::SetOptions(const InputParameters& input)
     else if (spec.GetName() == "phase")
       options_.phase = spec.GetValue<std::string>();
 
-    // else if (spec.GetName() == "params")
-    // {
-    //   spec.RequireBlockTypeIs(ParameterBlockType::ARRAY);
-    //   for (const auto& sub_param : spec)
-    //   {
-    //     auto vec = std::make_unique<CAROM::Vector>(sub_param.GetValue<double>(), false);
-    //     // CAROM::Vector param_point(sub_param.GetValue<double>(), false);
-    //     param_points_.push_back(vec.get());
-    //   }
-    // }
+    else if (spec.GetName() == "param_file")
+      options_.param_file = spec.GetValue<std::string>();
+
+    else if (spec.GetName() == "new_point")
+      options_.new_point = spec.GetValue<double>();
   } // for p
 
   if (options_.restart_writes_enabled)

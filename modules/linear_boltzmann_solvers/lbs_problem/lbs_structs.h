@@ -234,6 +234,8 @@ struct LBSOptions
 
   int param_id = 0;
   std::string phase = "offline";
+  std::string param_file = "";
+  double new_point = 0.0;
 
   LBSOptions() = default;
 };
