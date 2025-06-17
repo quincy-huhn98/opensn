@@ -537,7 +537,7 @@ LBSProblem::AssembleAU()
   DenseMatrix<double> AU_(local_node_count_, romRank);
   for (int r=0; r<romRank; ++r)
   {
-    LBSSolverIO::ReadFluxMoments(*this, "basis_"+std::to_string(r), false);
+    LBSSolverIO::ReadFluxMoments(*this, "mode_"+std::to_string(r), false);
     for (int dof=0; dof<local_node_count_; ++dof)
     {
       AU_(dof,r) = phi_old_local_[dof];
