@@ -271,6 +271,9 @@ public:
   /// Load the basis from h5
   void ReadBasis();
 
+  /// Load the params from file
+  std::vector<double> ReadParams();
+
   /// Perform the operator action of the sweep onto the reduced basis
   void OperatorAction();
 
