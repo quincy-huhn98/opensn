@@ -540,172 +540,73 @@ LBSProblem::OperatorAction()
   }
 }
 
-Mat 
+std::shared_ptr<CAROM::Matrix>
 LBSProblem::AssembleAU()
 {
-  Mat AU;
-  MatCreateSeqDense(PETSC_COMM_SELF, local_node_count_, romRank, NULL, &AU);
-
-  for (int r=0; r<romRank; ++r)
+  auto AU = std::make_shared<CAROM::Matrix>(local_node_count_, romRank, false);
+  for (int r = 0; r < romRank; ++r)
   {
-    LBSSolverIO::ReadFluxMoments(*this, "mode_"+std::to_string(r), false);
-    for (int dof=0; dof<local_node_count_; ++dof)
-    {
-      MatSetValue(AU, dof, r, phi_old_local_[dof], INSERT_VALUES);
-    }
+    LBSSolverIO::ReadFluxMoments(*this, "mode_" + std::to_string(r), false);
+    for (int i = 0; i < local_node_count_; ++i)
+      AU->item(i, r) = phi_old_local_[i];
   }
-
-  MatAssemblyBegin(AU, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(AU, MAT_FINAL_ASSEMBLY);
-
   return AU;
 }
 
-Vec 
+std::shared_ptr<CAROM::Vector> 
 LBSProblem::LoadRHS()
 {
-  Vec b;
-  VecCreateSeq(PETSC_COMM_SELF, local_node_count_, &b);
-
   LBSSolverIO::ReadFluxMoments(*this, "rhs", false);
-  for (int dof=0; dof<local_node_count_; ++dof)
-  {
-    VecSetValue(b, dof, phi_old_local_[dof], INSERT_VALUES);
-  }
-
-  VecAssemblyBegin(b);
-  VecAssemblyEnd(b);
-
+  auto b = std::make_shared<CAROM::Vector>(local_node_count_, false);
+  for (int i = 0; i < local_node_count_; ++i)
+    (*b)(i) = phi_old_local_[i];
   return b;
 }
 
 void 
-LBSProblem::AssembleROM(Mat AU, Vec b,
-                        const std::string& Ar_filename,
-                        const std::string& rhs_filename)
+LBSProblem::AssembleROM(
+  std::shared_ptr<CAROM::Matrix>& AU,
+  std::shared_ptr<CAROM::Vector>& b,
+  const std::string& Ar_filename,
+  const std::string& rhs_filename)
 {
-  Mat A_T;
-  MatTranspose(AU, MAT_INITIAL_MATRIX, &A_T);
+  // Ar = AU^T * AU
+  auto Ar = AU->transposeMult(*AU);
 
-  // Compute rhs = AU^T * b
-  Vec rhs;
-  VecCreateSeq(PETSC_COMM_SELF, romRank, &rhs);
-  MatMult(A_T, b, rhs);
+  // rhs = AU^T * b
+  auto rhs = AU->transposeMult(*b);
 
-  // Compute Ar = AU^T * AU
-  Mat Ar;
-  MatMatMult(A_T, AU, MAT_INITIAL_MATRIX, PETSC_DEFAULT, &Ar);
-
-  // Save Ar to binary file
-  PetscViewer viewer_Ar;
-  PetscViewerBinaryOpen(PETSC_COMM_SELF, Ar_filename.c_str(), FILE_MODE_WRITE, &viewer_Ar);
-  MatView(Ar, viewer_Ar);
-  PetscViewerDestroy(&viewer_Ar);
-
-  // Save rhs to binary file
-  PetscViewer viewer_rhs;
-  PetscViewerBinaryOpen(PETSC_COMM_SELF, rhs_filename.c_str(), FILE_MODE_WRITE, &viewer_rhs);
-  VecView(rhs, viewer_rhs);
-  PetscViewerDestroy(&viewer_rhs);
-
-  // Cleanup
-  VecDestroy(&rhs);
-  MatDestroy(&Ar);
-  MatDestroy(&A_T);
+  // Save
+  Ar->write(Ar_filename);
+  rhs->write(rhs_filename);
 }
 
-void 
-LBSProblem::SolveROM(std::shared_ptr<CAROM::Matrix> Ar_interp,
-                     std::shared_ptr<CAROM::Vector> rhs_interp)
+void
+LBSProblem::SolveROM(
+  std::shared_ptr<CAROM::Matrix>& Ar,
+  std::shared_ptr<CAROM::Vector>& rhs)
 {
-  // Convert CAROM::Matrix to PETSc Mat
-  Mat Ar;
-  int N = Ar_interp->numRows();
-  MatCreateSeqDense(PETSC_COMM_SELF, N, N, nullptr, &Ar);
-  for (int i = 0; i < N; ++i)
-    for (int j = 0; j < N; ++j)
-      MatSetValue(Ar, i, j, (*Ar_interp)(i, j), INSERT_VALUES);
-  MatAssemblyBegin(Ar, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(Ar, MAT_FINAL_ASSEMBLY);
+  const int N = Ar->numRows();
 
-  // Convert CAROM::Vector to PETSc Vec
-  Vec rhs;
-  VecCreateSeq(PETSC_COMM_SELF, N, &rhs);
-  for (int i = 0; i < N; ++i)
-    VecSetValue(rhs, i, (*rhs_interp)(i), INSERT_VALUES);
-  VecAssemblyBegin(rhs);
-  VecAssemblyEnd(rhs);
+  CAROM::Matrix Ar_inv(Ar->numRows(), Ar->numColumns(), false);
 
-  // Solve Ar * c = rhs
-  Vec c;
-  VecDuplicate(rhs, &c);
+  // Compute inverse of Ar
+  Ar->inverse(Ar_inv);
 
-  KSP ksp;
-  KSPCreate(PETSC_COMM_SELF, &ksp);
-  KSPSetOperators(ksp, Ar, Ar);
-  KSPSetType(ksp, KSPPREONLY);
-  PC pc;
-  KSPGetPC(ksp, &pc);
-  PCSetType(pc, PCLU);
-  KSPSetFromOptions(ksp);
-  KSPSolve(ksp, rhs, c);
+  // Multiply: c = Ar_inv * rhs
+  auto c_vec = Ar_inv.mult(*rhs);
 
-  // Reconstruct solution from basis and coefficients
+  // Reconstruct the solution phi = sum_r c_r * basis_r
   phi_new_local_.assign(phi_new_local_.size(), 0.0);
-  const PetscScalar* c_arr;
-  VecGetArrayRead(c, &c_arr);
+
   for (int r = 0; r < romRank; ++r)
   {
     auto basis = spatialbasis->getColumn(r);
-    basis->gather();  // If needed for non-local data
+    basis->gather();  // ensure local availability
+
     for (size_t i = 0; i < basis->dim(); ++i)
-      phi_new_local_[i] += c_arr[r] * basis->item(i);
+      phi_new_local_[i] += (*c_vec)(r) * basis->item(i);
   }
-  VecRestoreArrayRead(c, &c_arr);
-
-  // Cleanup
-  VecDestroy(&c);
-  VecDestroy(&rhs);
-  MatDestroy(&Ar);
-  KSPDestroy(&ksp);
-}
-
-std::shared_ptr<CAROM::Matrix>
-ConvertPETScMatToCAROM(Mat petsc_mat)
-{
-  PetscInt m, n;
-  MatGetSize(petsc_mat, &m, &n);
-  std::shared_ptr<CAROM::Matrix> mat;
-  mat = std::make_shared<CAROM::Matrix>(m, n, false);
-
-  for (PetscInt j = 0; j < n; ++j)
-  {
-    for (PetscInt i = 0; i < m; ++i)
-      {
-        PetscScalar val = 0.0;
-        MatGetValues(petsc_mat, 1, &i, 1, &j, &val);
-        mat->item(i, j) = val;
-      }
-  }
-
-  return mat;
-}
-
-std::shared_ptr<CAROM::Vector>
-ConvertPETScVecToCAROM(Vec petsc_vec)
-{
-  PetscInt n;
-  VecGetSize(petsc_vec, &n);
-  std::shared_ptr<CAROM::Vector> vec;
-  vec = std::make_shared<CAROM::Vector>(n, false);
-
-  const PetscScalar* petsc_array;
-  VecGetArrayRead(petsc_vec, &petsc_array);
-  for (PetscInt i = 0; i < n; ++i)
-      (*vec)(i) = petsc_array[i];
-  VecRestoreArrayRead(petsc_vec, &petsc_array);
-
-  return vec;
 }
 
 void 
@@ -717,33 +618,22 @@ LBSProblem::InterpolateArAndRHS(
   std::vector<std::shared_ptr<CAROM::Matrix>> Ar_matrices;
   std::vector<std::shared_ptr<CAROM::Vector>> rhs_vectors;
 
-  // Load PETSc matrices/vectors and convert
+  // Load Ar and rhs from libROM files
   for (size_t i = 0; i < param_points_.size(); ++i)
   {
-    Mat Ar;
-    Vec rhs;
-    PetscViewer viewer;
-    const std::string& Ar_filename = "rom_system_Ar_" + std::to_string(i);
-    const std::string& rhs_filename = "rom_system_rhs_" + std::to_string(i);
+    const std::string Ar_filename = "rom_system_Ar_" + std::to_string(i);
+    const std::string rhs_filename = "rom_system_rhs_" + std::to_string(i);
 
-    // Load Ar
-    PetscViewerBinaryOpen(PETSC_COMM_SELF, Ar_filename.c_str(), FILE_MODE_READ, &viewer);
-    MatCreate(PETSC_COMM_SELF, &Ar);
-    MatLoad(Ar, viewer);
-    PetscViewerDestroy(&viewer);
+    // Create empty containers
+    auto Ar = std::make_shared<CAROM::Matrix>();
+    auto rhs = std::make_shared<CAROM::Vector>();
 
-    // Load rhs
-    PetscViewerBinaryOpen(PETSC_COMM_SELF, rhs_filename.c_str(), FILE_MODE_READ, &viewer);
-    VecCreate(PETSC_COMM_SELF, &rhs);
-    VecLoad(rhs, viewer);
-    PetscViewerDestroy(&viewer);
+    // Read matrix and vector
+    Ar->read(Ar_filename);
+    rhs->read(rhs_filename);
 
-    // Convert to CAROM
-    Ar_matrices.push_back(ConvertPETScMatToCAROM(Ar));
-    rhs_vectors.push_back(ConvertPETScVecToCAROM(rhs));
-
-    MatDestroy(&Ar);
-    VecDestroy(&rhs);
+    Ar_matrices.push_back(Ar);
+    rhs_vectors.push_back(rhs);
   }
 
   // Make Identity Rotations

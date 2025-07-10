@@ -256,18 +256,20 @@ public:
   void OperatorAction();
 
   /// Load individual vectors of AU into a single matrix
-  Mat AssembleAU();
+  std::shared_ptr<CAROM::Matrix> AssembleAU();
 
   /// Load the rhs from h5
-  Vec LoadRHS();
+  std::shared_ptr<CAROM::Vector> LoadRHS();
 
   /// Assemble the reduced system and save to file
-  void AssembleROM(Mat AU_, Vec b_, const std::string& Ar_filename,
-                                    const std::string& rhs_filename);
+  void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU_, 
+                   std::shared_ptr<CAROM::Vector>& b_, 
+                   const std::string& Ar_filename,
+                   const std::string& rhs_filename);
 
   /// Solve given LHS and RHS of a ROM system
-  void SolveROM(std::shared_ptr<CAROM::Matrix> Ar_interp,
-                std::shared_ptr<CAROM::Vector> rhs_interp);
+  void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
+                std::shared_ptr<CAROM::Vector>& rhs);
 
   /// Load reduced systems from file and interpolate
   void InterpolateArAndRHS(
