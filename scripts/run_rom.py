@@ -3,22 +3,22 @@ import os
 import h5py
 import matplotlib.pyplot as plt
 
-sigmas = np.random.uniform(0,1,48)
+# sigmas = np.random.uniform(0,1,48)
 
-sigmas = np.append(sigmas, [0,1], axis=0)
+# sigmas = np.append(sigmas, [0,1], axis=0)
 
-for i, sigma in enumerate(sigmas):
-    os.system("../build/python/opensn -i offline_reed.py -p scatt={} -p id={}".format(sigma, i))
+# for i, sigma in enumerate(sigmas):
+#     os.system("../build/python/opensn -i offline_reed.py -p scatt={} -p id={}".format(sigma, i))
 
-print("Merge")
-os.system("../build/python/opensn -i merge_reed.py -p id={}".format(i))
+# print("Merge")
+# os.system("../build/python/opensn -i merge_reed.py -p id={}".format(i))
 
-for i, sigma in enumerate(sigmas):
-    os.system("../build/python/opensn -i systems_reed.py -p scatt={} -p id={}".format(sigma,i))
+# for i, sigma in enumerate(sigmas):
+#     os.system("../build/python/opensn -i systems_reed.py -p scatt={} -p id={}".format(sigma,i))
 
-np.savetxt("sigmas.txt", sigmas)
+# np.savetxt("sigmas.txt", sigmas)
 
-test = np.random.uniform(0,1,10)
+test = np.linspace(0,1,10)
 
 error = 0
 

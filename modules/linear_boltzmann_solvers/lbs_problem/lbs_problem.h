@@ -288,14 +288,14 @@ public:
                                     const std::string& rhs_filename);
 
   /// Solve given LHS and RHS of a ROM system
-  void SolveROM(std::unique_ptr<CAROM::Matrix>& Ar_interp,
-                std::unique_ptr<CAROM::Vector>& rhs_interp);
+  void SolveROM(std::shared_ptr<CAROM::Matrix> Ar_interp,
+                std::shared_ptr<CAROM::Vector> rhs_interp);
 
   /// Load reduced systems from file and interpolate
   void InterpolateArAndRHS(
-    CAROM::Vector* desired_point,
-    std::unique_ptr<CAROM::Matrix>& Ar_interp,
-    std::unique_ptr<CAROM::Vector>& rhs_interp);
+    CAROM::Vector& desired_point,
+    std::shared_ptr<CAROM::Matrix>& Ar_interp,
+    std::shared_ptr<CAROM::Vector>& rhs_interp);
 
 protected:
   /// Performs general input checks before initialization continues.
@@ -380,8 +380,7 @@ protected:
   std::map<std::pair<size_t, size_t>, size_t> phi_field_functions_local_map_;
   size_t power_gen_fieldfunc_local_handle_ = 0;
 
-  CAROM::Matrix* spatialbasis;
-  int romRank;
+  std::unique_ptr<CAROM::Matrix> spatialbasis;
   opensn::Vector<double> b_;
 
 
@@ -409,15 +408,16 @@ protected:
 public:
   static std::map<std::string, uint64_t> supported_boundary_names;
   static std::map<uint64_t, std::string> supported_boundary_ids;
-  std::vector<CAROM::Vector*> param_points_;
+  std::vector<CAROM::Vector> param_points_;
+  int romRank;
 
   /// Returns the input parameters for this object.
   static InputParameters GetInputParameters();
 };
 
 
-CAROM::Matrix* ConvertPETScMatToCAROM(Mat petsc_mat);
+std::shared_ptr<CAROM::Matrix> ConvertPETScMatToCAROM(Mat petsc_mat);
 
-CAROM::Vector* ConvertPETScVecToCAROM(Vec petsc_vec);
+std::shared_ptr<CAROM::Vector> ConvertPETScVecToCAROM(Vec petsc_vec);
 
 } // namespace opensn
