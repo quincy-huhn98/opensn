@@ -508,12 +508,12 @@ LBSProblem::OperatorAction()
     auto raw_context = solver->GetContext();
     auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
     auto scope = gs_context_ptr->lhs_src_scope;
-    DenseMatrix<double> AOp;
+
     std::string baseName = "mode_";
     for (int r=0; r<romRank; ++r)
     {
       auto basis = spatialbasis->getColumn(r);
-      basis->gather();
+      // basis->gather();
 
       std::vector<double> basis_local_;
 
@@ -521,7 +521,6 @@ LBSProblem::OperatorAction()
           basis_local_.push_back(basis->item(i));
       }
       phi_new_local_ = basis_local_;
-      LBSSolverIO::WriteFluxMoments(*this,"basis_"+std::to_string(r));
 
       auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
       gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, basis_local_, scope);
@@ -530,6 +529,8 @@ LBSProblem::OperatorAction()
       LBSSolverIO::WriteFluxMoments(*this,baseName+std::to_string(r));
     }
 
+    // Reconstruct the solution phi = sum_r c_r * basis_r
+    phi_old_local_.assign(phi_old_local_.size(), 0.0);
     // Calculate RHS
     scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
     gs_context_ptr->set_source_function(groupsets_[0], q_moments_local_, phi_old_local_, scope);
@@ -543,12 +544,31 @@ LBSProblem::OperatorAction()
 std::shared_ptr<CAROM::Matrix>
 LBSProblem::AssembleAU()
 {
-  auto AU = std::make_shared<CAROM::Matrix>(local_node_count_, romRank, false);
-  for (int r = 0; r < romRank; ++r)
+  auto AU = std::make_shared<CAROM::Matrix>(local_node_count_, romRank, true);
+  for (auto& solver : wgs_solvers_)
   {
-    LBSSolverIO::ReadFluxMoments(*this, "mode_" + std::to_string(r), false);
-    for (int i = 0; i < local_node_count_; ++i)
-      AU->item(i, r) = phi_old_local_[i];
+    auto raw_context = solver->GetContext();
+    auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
+
+    for (int r=0; r<romRank; ++r)
+    {
+      auto basis = spatialbasis->getColumn(r);
+      // basis->gather();
+
+      std::vector<double> basis_local_;
+
+      for (size_t i = 0; i < basis->dim(); ++i) {
+          basis_local_.push_back(basis->item(i));
+      }
+      phi_new_local_ = basis_local_;
+
+      auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+      gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, basis_local_, scope);
+      gs_context_ptr->ApplyInverseTransportOperator(scope);
+      phi_new_local_ = basis_local_ - phi_new_local_;
+      for (int i = 0; i < local_node_count_; ++i)
+        AU->item(i, r) = phi_new_local_[i];
+    }
   }
   return AU;
 }
@@ -556,10 +576,22 @@ LBSProblem::AssembleAU()
 std::shared_ptr<CAROM::Vector> 
 LBSProblem::LoadRHS()
 {
-  LBSSolverIO::ReadFluxMoments(*this, "rhs", false);
-  auto b = std::make_shared<CAROM::Vector>(local_node_count_, false);
-  for (int i = 0; i < local_node_count_; ++i)
-    (*b)(i) = phi_old_local_[i];
+  auto b = std::make_shared<CAROM::Vector>(local_node_count_, true);
+  for (auto& solver : wgs_solvers_)
+  {
+    auto raw_context = solver->GetContext();
+    auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
+    // Reconstruct the solution phi = sum_r c_r * basis_r
+    phi_old_local_.assign(phi_old_local_.size(), 0.0);
+    // Calculate RHS
+    auto scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+    gs_context_ptr->set_source_function(groupsets_[0], q_moments_local_, phi_old_local_, scope);
+
+    // Apply transport operator
+    gs_context_ptr->ApplyInverseTransportOperator(scope);
+    for (int i = 0; i < local_node_count_; ++i)
+      (*b)(i) = phi_new_local_[i];
+  }
   return b;
 }
 
@@ -588,13 +620,13 @@ LBSProblem::SolveROM(
 {
   const int N = Ar->numRows();
 
-  CAROM::Matrix Ar_inv(Ar->numRows(), Ar->numColumns(), false);
+  auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
 
   // Compute inverse of Ar
-  Ar->inverse(Ar_inv);
+  Ar->inverse(*Ar_inv);
 
   // Multiply: c = Ar_inv * rhs
-  auto c_vec = Ar_inv.mult(*rhs);
+  auto c_vec = Ar_inv->mult(*rhs);
 
   // Reconstruct the solution phi = sum_r c_r * basis_r
   phi_new_local_.assign(phi_new_local_.size(), 0.0);
@@ -602,7 +634,7 @@ LBSProblem::SolveROM(
   for (int r = 0; r < romRank; ++r)
   {
     auto basis = spatialbasis->getColumn(r);
-    basis->gather();  // ensure local availability
+    //basis->gather();  // ensure local availability
 
     for (size_t i = 0; i < basis->dim(); ++i)
       phi_new_local_[i] += (*c_vec)(r) * basis->item(i);
@@ -629,8 +661,8 @@ LBSProblem::InterpolateArAndRHS(
     auto rhs = std::make_shared<CAROM::Vector>();
 
     // Read matrix and vector
-    Ar->read(Ar_filename);
-    rhs->read(rhs_filename);
+    Ar->local_read(Ar_filename, opensn::mpi_comm.rank());
+    rhs->local_read(rhs_filename, opensn::mpi_comm.rank());
 
     Ar_matrices.push_back(Ar);
     rhs_vectors.push_back(rhs);
@@ -651,16 +683,15 @@ LBSProblem::InterpolateArAndRHS(
 
   int ref_index = getClosestPoint(param_points_, desired_point);
 
-  // Keep these as member variables (for test)
-  static std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
-  static std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
+  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
+  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
 
   Ar_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
     param_points_, rotations, Ar_matrices,
-    ref_index, "SPD", "G", "LS", 0.5, false);
+    ref_index, "SPD", "G", "LS", 0.8, false);
   rhs_interp_obj_ptr = std::make_unique<CAROM::VectorInterpolator>(
     param_points_, rotations, rhs_vectors,
-    ref_index, "G", "LS", 0.5, false);
+    ref_index, "G", "LS", 0.8, false);
 
   Ar_interp = Ar_interp_obj_ptr->interpolate(desired_point);
   rhs_interp = rhs_interp_obj_ptr->interpolate(desired_point);

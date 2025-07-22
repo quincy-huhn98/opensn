@@ -85,7 +85,7 @@ if (options.phase == "offline")
   if (options.phase == "systems")
   {
     lbs_problem_->ReadBasis();
-    lbs_problem_->OperatorAction();
+    //lbs_problem_->OperatorAction();
     std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
     std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
     const std::string& Ar_filename = "rom_system_Ar_" + std::to_string(options.param_id);
@@ -109,7 +109,9 @@ if (options.phase == "offline")
     std::shared_ptr<CAROM::Vector> rhs_interp;
 
     lbs_problem_->InterpolateArAndRHS(new_point, Ar_interp, rhs_interp);
+    std::cout << "after interp";
     lbs_problem_->SolveROM(Ar_interp, rhs_interp);
+    std::cout << "after solve";
   }
 }
 
