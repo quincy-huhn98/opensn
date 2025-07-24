@@ -88,8 +88,8 @@ SteadyStateSourceSolver::Execute()
     //lbs_problem_->OperatorAction();
     std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
     std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
-    const std::string& Ar_filename = "rom_system_Ar_" + std::to_string(options.param_id);
-    const std::string& rhs_filename = "rom_system_rhs_" + std::to_string(options.param_id);
+    const std::string& Ar_filename = "data/rom_system_Ar_" + std::to_string(options.param_id);
+    const std::string& rhs_filename = "data/rom_system_rhs_" + std::to_string(options.param_id);
     lbs_problem_->AssembleROM(AU_, b_, Ar_filename, rhs_filename);
   }
   if (options.phase == "mipod")
@@ -98,7 +98,6 @@ SteadyStateSourceSolver::Execute()
     std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
     std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
     lbs_problem_->MIPOD(AU_, b_);
-    std::cout << "Executed";
   }
   if (options.phase == "online")
   {
@@ -117,9 +116,7 @@ SteadyStateSourceSolver::Execute()
     std::shared_ptr<CAROM::Vector> rhs_interp;
 
     lbs_problem_->InterpolateArAndRHS(new_point, Ar_interp, rhs_interp);
-    std::cout << "after interp";
     lbs_problem_->SolveROM(Ar_interp, rhs_interp);
-    std::cout << "after solve";
   }
 }
 

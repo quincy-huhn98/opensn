@@ -434,7 +434,7 @@ LBSProblem::TakeSample(int id)
   bool update_right_SV = false;
   int max_num_snapshots = 100;
   bool isIncremental = false;
-  const std::string basisName = "basis";
+  const std::string basisName = "basis/basis";
   const std::string basisFileName = basisName + std::to_string(id);
 
   CAROM::Options options(local_node_count_, max_num_snapshots, update_right_SV);
@@ -450,10 +450,11 @@ LBSProblem::MergePhase(int nsnaps)
   bool update_right_SV = false;
   int max_num_snapshots = 100;
   bool isIncremental = false;
-  const std::string basisName = "basis";
+  const std::string basisName = "basis/basis";
 
   CAROM::Options options(local_node_count_, max_num_snapshots, update_right_SV);
-  double tol = 1e-5;
+  // options.setMaxBasisDimension(5);
+  double tol = 1e-8;
   options.setSingularValueTol(tol);
   CAROM::BasisGenerator generator(options, isIncremental, basisName);
 
@@ -463,12 +464,26 @@ LBSProblem::MergePhase(int nsnaps)
     generator.loadSamples(snapshot_filename, "snapshot");
   }
   generator.endSamples();
+
+  if (opensn::mpi_comm.rank() == 0)
+  {
+    const std::string sv_file = "data/singular_values.txt";
+    std::ofstream sv_out(sv_file);
+
+    const auto& S_vec = generator.getSingularValues();
+
+    for (int i = 0; i < S_vec->dim(); ++i)
+      sv_out << std::setprecision(16) << S_vec->item(i) << "\n";
+
+    sv_out.close();
+    log.Log() << "Saved singular values to " << sv_file << "\n";
+  }
 }
 
 void
 LBSProblem::ReadBasis()
 {
-  const std::string basisName = "basis";
+  const std::string basisName = "basis/basis";
   static std::unique_ptr<CAROM::BasisReader> reader_ptr;
   reader_ptr = std::make_unique<CAROM::BasisReader>(basisName);
   spatialbasis = reader_ptr->getSpatialBasis();
@@ -563,6 +578,7 @@ LBSProblem::AssembleAU()
       phi_new_local_ = basis_local_;
 
       auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+      q_moments_local_.assign(q_moments_local_.size(), 0.0);
       gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, basis_local_, scope);
       gs_context_ptr->ApplyInverseTransportOperator(scope);
       phi_new_local_ = basis_local_ - phi_new_local_;
@@ -583,6 +599,8 @@ LBSProblem::LoadRHS()
     auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
     // Reconstruct the solution phi = sum_r c_r * basis_r
     phi_old_local_.assign(phi_old_local_.size(), 0.0);
+    phi_new_local_.assign(phi_new_local_.size(), 0.0);
+    q_moments_local_.assign(q_moments_local_.size(), 0.0);
     // Calculate RHS
     auto scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
     gs_context_ptr->set_source_function(groupsets_[0], q_moments_local_, phi_old_local_, scope);
@@ -618,13 +636,12 @@ LBSProblem::MIPOD(
   std::shared_ptr<CAROM::Matrix>& AU,
   std::shared_ptr<CAROM::Vector>& b)
 {
-  // Ar = AU^T * AU
-  std::shared_ptr<CAROM::Matrix> Ar = AU->transposeMult(*AU);
-
   // rhs = AU^T * b
   std::shared_ptr<CAROM::Vector> rhs = AU->transposeMult(*b);
 
-  // Save
+  // Ar = AU^T * AU
+  std::shared_ptr<CAROM::Matrix> Ar = AU->transposeMult(*AU);
+
   SolveROM(Ar,rhs);
 }
 
@@ -637,10 +654,8 @@ LBSProblem::SolveROM(
 
   auto Ar_inv = std::make_shared<CAROM::Matrix>(Ar->numRows(), Ar->numColumns(), false);
 
-  // Compute inverse of Ar
   Ar->inverse(*Ar_inv);
 
-  // Multiply: c = Ar_inv * rhs
   auto c_vec = Ar_inv->mult(*rhs);
 
   // Reconstruct the solution phi = sum_r c_r * basis_r
@@ -649,7 +664,6 @@ LBSProblem::SolveROM(
   for (int r = 0; r < romRank; ++r)
   {
     auto basis = spatialbasis->getColumn(r);
-    //basis->gather();  // ensure local availability
 
     for (size_t i = 0; i < basis->dim(); ++i)
       phi_new_local_[i] += (*c_vec)(r) * basis->item(i);
@@ -668,8 +682,8 @@ LBSProblem::InterpolateArAndRHS(
   // Load Ar and rhs from libROM files
   for (size_t i = 0; i < param_points_.size(); ++i)
   {
-    const std::string Ar_filename = "rom_system_Ar_" + std::to_string(i);
-    const std::string rhs_filename = "rom_system_rhs_" + std::to_string(i);
+    const std::string Ar_filename = "data/rom_system_Ar_" + std::to_string(i);
+    const std::string rhs_filename = "data/rom_system_rhs_" + std::to_string(i);
 
     // Create empty containers
     auto Ar = std::make_shared<CAROM::Matrix>();
@@ -703,10 +717,10 @@ LBSProblem::InterpolateArAndRHS(
 
   Ar_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
     param_points_, rotations, Ar_matrices,
-    ref_index, "SPD", "G", "LS", 0.8, false);
+    ref_index, "SPD", "G", "LS", 0.9, false);
   rhs_interp_obj_ptr = std::make_unique<CAROM::VectorInterpolator>(
     param_points_, rotations, rhs_vectors,
-    ref_index, "G", "LS", 0.8, false);
+    ref_index, "G", "LS", 0.9, false);
 
   Ar_interp = Ar_interp_obj_ptr->interpolate(desired_point);
   rhs_interp = rhs_interp_obj_ptr->interpolate(desired_point);

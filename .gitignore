@@ -77,3 +77,8 @@ doc/source/tutorials/**/*.vtu
 doc/source/tutorials/**/*.py
 
 doc/source/tutorials/**/.ipynb_checkpoints/
+
+scripts/*/basis/*
+scripts/*/data/*
+scripts/*/output/*
+scripts/*/results/*

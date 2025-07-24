@@ -28,6 +28,7 @@ option(ENABLE_PETSC   "Install PETSc"   ON)
 option(ENABLE_HDF5    "Install HDF5"    ON)
 option(ENABLE_VTK     "Install VTK"     ON)
 option(ENABLE_CALIPER "Install Caliper" ON)
+option(ENABLE_LIBROM  "Install libROM"  ON)
 
 set(INSTALLED_DEP_COUNT 0)
 
@@ -150,6 +151,29 @@ if(ENABLE_CALIPER)
     math(EXPR INSTALLED_DEP_COUNT "${INSTALLED_DEP_COUNT}+1")
   endif()
 endif()
+
+if(ENABLE_LIBROM)
+  find_path(LIBROM_INCLUDE_DIR librom.h PATHS ${CMAKE_INSTALL_PREFIX}/include)
+
+  if(LIBROM_INCLUDE_DIR)
+    message(STATUS "Found libROM: ${LIBROM_INCLUDE_DIR}")
+  else()
+    ExternalProject_Add(librom
+      URL ${CMAKE_SOURCE_DIR}/librom-master.zip
+      SOURCE_DIR ${CMAKE_BINARY_DIR}/librom-src
+      CONFIGURE_COMMAND ${CMAKE_COMMAND}
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_CXX_FLAGS="-fPIC"
+        -DUSE_MFEM=OFF
+        ${CMAKE_BINARY_DIR}/librom-src
+      BUILD_COMMAND ${CMAKE_COMMAND} --build . --parallel ${JOBS}
+      INSTALL_COMMAND ${CMAKE_COMMAND} --install .
+    )
+    math(EXPR INSTALLED_DEP_COUNT "${INSTALLED_DEP_COUNT}+1")
+  endif()
+endif()
+
 
 if(INSTALLED_DEP_COUNT EQUAL 0)
   message(STATUS "All dependencies satisfied; no package installations necessary.")

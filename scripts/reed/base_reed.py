@@ -20,6 +20,46 @@ if "opensn_console" not in globals():
 
 if __name__ == "__main__":
 
+    try:
+        print("Scattering Parameter = {}".format(scatt))
+        param = scatt
+    except:
+        scatt=0.9
+        print("Scattering Nominal = {}".format(scatt))
+
+    try:
+        print("Source Parameter = {}".format(param_q))
+        param = param_q
+    except:
+        param_q=1.0
+        print("Source Nominal = {}".format(param_q))
+
+    try:
+        print("Parameter id = {}".format(p_id))
+    except:
+        p_id=0
+        print("Parameter id = {}".format(p_id))
+
+    try:
+        if phase == 0:
+            print("Offline Phase")
+            phase = "offline"
+        elif phase == 1:
+            print("Merge Phase")
+            phase = "merge"
+        elif phase == 2:
+            print("Systems Phase")
+            phase = "systems"
+        elif phase == 3:
+            print("MI-POD")
+            phase = "mipod"
+        elif phase == 4:
+            print("Online Phase")
+            phase = "online"
+    except:
+        phase="offline"
+        print("Phase default to offline")
+    
     # Create Mesh
     widths = [2., 1., 2., 1., 2.]
     nrefs = [200, 200, 200, 200, 200]
@@ -55,15 +95,39 @@ if __name__ == "__main__":
 
     # Create sources in 1st and 4th materials
     src0 = VolumetricSource(block_ids=[0], group_strength=[50.])
-    src1 = VolumetricSource(block_ids=[3], group_strength=[1.])
+    src1 = VolumetricSource(block_ids=[3], group_strength=[param_q])
 
     # Angular Quadrature
     gl_quad = GLProductQuadrature1DSlab(n_polar=128, scattering_order=0)
 
     # LBS block option
     num_groups = 1
-
-    phys_on = DiscreteOrdinatesProblem(
+    if phase == "online":
+        phys_options = {
+                "spatial_discretization": "pwld",
+                "boundary_conditions": [
+                    {"name": "zmin", "type": "vacuum"},
+                    {"name": "zmax", "type": "vacuum"}
+                ],
+                "volumetric_sources": [src0, src1],
+                "param_id": 0,
+                "phase": phase,
+                "param_file": "data/sigmas.txt",
+                "new_point": scatt
+            }
+    else:
+        phys_options = {
+                "spatial_discretization": "pwld",
+                "boundary_conditions": [
+                    {"name": "zmin", "type": "vacuum"},
+                    {"name": "zmax", "type": "vacuum"}
+                ],
+                "volumetric_sources": [src0, src1],
+                "param_id": p_id,
+                "phase": phase
+            }
+        
+    phys = DiscreteOrdinatesProblem(
         mesh=grid,
         num_groups=num_groups,
         groupsets=[
@@ -77,56 +141,21 @@ if __name__ == "__main__":
             },
         ],
         xs_map=xs_map,
-        options={
-            "scattering_order": 0,
-            "spatial_discretization": "pwld",
-            "boundary_conditions": [
-                {"name": "zmin", "type": "vacuum"},
-                {"name": "zmax", "type": "vacuum"}
-            ],
-            "volumetric_sources": [src0, src1],
-            "param_id": id,
-            "phase": "mipod"
-        }
+        scattering_order=0,
+        options=phys_options
     )
 
     # Initialize and execute solver
-    ss_solver_on = SteadyStateSolver(lbs_problem=phys_on)
-    ss_solver_on.Initialize()
-    ss_solver_on.Execute()
+    ss_solver = SteadyStateSolver(lbs_problem=phys)
+    ss_solver.Initialize()
+    ss_solver.Execute()
 
-    phys_on.WriteFluxMoments("mi_rom")
-
-    phys_off = DiscreteOrdinatesProblem(
-        mesh=grid,
-        num_groups=num_groups,
-        groupsets=[
-            {
-                "groups_from_to": (0, num_groups - 1),
-                "angular_quadrature": gl_quad,
-                "inner_linear_method": "petsc_gmres",
-                "l_abs_tol": 1.0e-9,
-                "l_max_its": 300,
-                "gmres_restart_interval": 30,
-            },
-        ],
-        xs_map=xs_map,
-        options={
-            "scattering_order": 0,
-            "spatial_discretization": "pwld",
-            "boundary_conditions": [
-                {"name": "zmin", "type": "vacuum"},
-                {"name": "zmax", "type": "vacuum"}
-            ],
-            "volumetric_sources": [src0, src1],
-            "param_id": 0,
-            "phase": "offline"
-        }
-    )
-
-    # Initialize and execute solver
-    ss_solver_off = SteadyStateSolver(lbs_problem=phys_off)
-    ss_solver_off.Initialize()
-    ss_solver_off.Execute()
-
-    phys_off.WriteFluxMoments("fom")
+    # compute particle balance
+    phys.ComputeBalance()
+    
+    if phase == "online":
+        phys.WriteFluxMoments("output/rom")
+    if phase == "mipod":
+        phys.WriteFluxMoments("output/mi_rom")
+    if phase == "offline":
+        phys.WriteFluxMoments("output/fom")

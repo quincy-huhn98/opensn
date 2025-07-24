@@ -4,31 +4,21 @@ import h5py
 import matplotlib.pyplot as plt
 import scipy.interpolate
 from matplotlib.colors import LogNorm
+import os
 
-param_q = np.random.uniform(0.1,2,8)
+sigmas = np.random.uniform(0.1,2,48)
 
-param_q = np.append(param_q, [0.1,2], axis=0)
+sigmas = np.append(sigmas, [0.1,2], axis=0)
 
 phase = 0
 
-for i, param in enumerate(param_q):
-    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p p_id={}".format(phase, param, i)
-    args = cmd.split(" ")
-    print(args)
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output, errors = process.communicate()
-    print("Output:", output)
-    print("Errors:", errors)
+for i, sigma in enumerate(sigmas):
+    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p param_q={} -p p_id={}".format(phase, sigma, i))
 
 phase = 1
 
-cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p p_id={}".format(phase, i)
-args = cmd.split(" ")
-print(args)
-process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-output, errors = process.communicate()
-print("Output:", output)
-print("Errors:", errors)
+print("Merge")
+os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p p_id={}".format(phase, i))
 
 S = np.loadtxt("data/singular_values.txt")
 plt.semilogy(S, 'o-')
@@ -38,42 +28,25 @@ plt.title("Singular value decay")
 plt.grid(True)
 plt.tight_layout()
 plt.savefig("results/svd_decay.jpg")
+plt.close()
 
-# myoutput = open("errors.txt", "w")
-# for i, param in enumerate(param_q):
-#     cmd = "mpiexec -n=4 ../../build/python/opensn -i systems_checkerboard.py -p param_q={} -p id={}".format(param,i)
-#     args = cmd.split(" ")
-#     print(args)
-#     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=myoutput, text=True)
-#     output, errors = process.communicate()
-#     print("Output:", output)
-#     print("Errors:", errors)
+# phase = 2
 
+# for i, sigma in enumerate(sigmas):
+#     os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p p_id={}".format(phase, sigma, i))
 
-np.savetxt("data/params.txt", param_q)
+np.savetxt("data/sigmas.txt", sigmas)
 
-test = [0.1,2.0]#np.random.uniform(5,15,10)
+test = np.linspace(0.1,2,10)
 
 error = 0
 
 for i, param in enumerate(test):
     phase = 3
-    cmd = "mpiexec -n 4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p p_id=0".format(phase, param)
-    args = cmd.split(" ")
-    print(args)
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output, errors = process.communicate()
-    print("Output:", output)
-    print("Errors:", errors)
+    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p param_q={} -p id=0".format(phase, param))
 
     phase = 0
-    cmd = "mpiexec -n 4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p p_id=0".format(phase, param)
-    args = cmd.split(" ")
-    print(args)
-    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    output, errors = process.communicate()
-    print("Output:", output)
-    print("Errors:", errors)
+    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p param_q={} -p id=0".format(phase, param))
 
     # Update this glob pattern to match your filenames
     # e.g., "mode_*.h5", "rhs*.h5", etc.
@@ -147,7 +120,7 @@ for i, param in enumerate(test):
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("ROM Solution Interpolated Heatmap q={}".format(param))
+    plt.title("ROM Solution Interpolated Heatmap c={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_rom{}.jpg".format(i))
@@ -161,7 +134,7 @@ for i, param in enumerate(test):
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("FOM Solution Interpolated Heatmap q={}".format(param))
+    plt.title("FOM Solution Interpolated Heatmap c={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_fom{}.jpg".format(i))
@@ -179,9 +152,9 @@ for i, param in enumerate(test):
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("Error Interpolated Heatmap q={}".format(param))
+    plt.title("Error Interpolated Heatmap c={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_err{}.jpg".format(i))
 
-print(error/i)
+print(error/10)
