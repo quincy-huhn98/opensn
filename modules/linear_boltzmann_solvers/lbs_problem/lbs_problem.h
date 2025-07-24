@@ -271,6 +271,10 @@ public:
   void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
                 std::shared_ptr<CAROM::Vector>& rhs);
 
+  /// Assemble and solve ROM using MIPOD
+  void MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
+             std::shared_ptr<CAROM::Vector>& rhs);
+
   /// Load reduced systems from file and interpolate
   void InterpolateArAndRHS(
     CAROM::Vector& desired_point,

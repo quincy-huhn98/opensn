@@ -613,6 +613,21 @@ LBSProblem::AssembleROM(
   rhs->write(rhs_filename);
 }
 
+void 
+LBSProblem::MIPOD(
+  std::shared_ptr<CAROM::Matrix>& AU,
+  std::shared_ptr<CAROM::Vector>& b)
+{
+  // Ar = AU^T * AU
+  std::shared_ptr<CAROM::Matrix> Ar = AU->transposeMult(*AU);
+
+  // rhs = AU^T * b
+  std::shared_ptr<CAROM::Vector> rhs = AU->transposeMult(*b);
+
+  // Save
+  SolveROM(Ar,rhs);
+}
+
 void
 LBSProblem::SolveROM(
   std::shared_ptr<CAROM::Matrix>& Ar,

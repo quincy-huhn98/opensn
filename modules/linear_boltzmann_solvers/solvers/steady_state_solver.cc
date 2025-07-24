@@ -55,8 +55,8 @@ SteadyStateSourceSolver::Initialize()
 void
 SteadyStateSourceSolver::Execute()
 {
-auto& options = lbs_problem_->GetOptions();
-if (options.phase == "offline")
+  auto& options = lbs_problem_->GetOptions();
+  if (options.phase == "offline")
   {
     CALI_CXX_MARK_SCOPE("SteadyStateSourceSolver::Execute");
 
@@ -91,6 +91,14 @@ if (options.phase == "offline")
     const std::string& Ar_filename = "rom_system_Ar_" + std::to_string(options.param_id);
     const std::string& rhs_filename = "rom_system_rhs_" + std::to_string(options.param_id);
     lbs_problem_->AssembleROM(AU_, b_, Ar_filename, rhs_filename);
+  }
+  if (options.phase == "mipod")
+  {
+    lbs_problem_->ReadBasis();
+    std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
+    std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
+    lbs_problem_->MIPOD(AU_, b_);
+    std::cout << "Executed";
   }
   if (options.phase == "online")
   {
