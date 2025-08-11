@@ -246,8 +246,11 @@ public:
   /// Load snapshots and perform SVD
   void MergePhase(int nsnaps);
 
-  /// Load the basis from h5
+  /// Load the basis from libROM format
   void ReadBasis();
+
+  /// Save the basis to h5
+  void SaveBasis();
 
   /// Load the params from file
   std::vector<double> ReadParams();

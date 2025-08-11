@@ -453,15 +453,46 @@ LBSProblem::MergePhase(int nsnaps)
   const std::string basisName = "basis/basis";
 
   CAROM::Options options(local_node_count_, max_num_snapshots, update_right_SV);
-  // options.setMaxBasisDimension(5);
-  double tol = 1e-8;
+  double tol = 1e-5;
   options.setSingularValueTol(tol);
-  CAROM::BasisGenerator generator(options, isIncremental, basisName);
+  CAROM::BasisGenerator loader(options, isIncremental, basisName);
 
-  for (int paramID=0; paramID<nsnaps; ++paramID)
+  for (int paramID = 0; paramID < nsnaps; ++paramID)
   {
     std::string snapshot_filename = basisName + std::to_string(paramID) + "_snapshot";
-    generator.loadSamples(snapshot_filename, "snapshot");
+    loader.loadSamples(snapshot_filename, "snapshot");
+  }
+
+  std::shared_ptr<const CAROM::Matrix> snapshots = loader.getSnapshotMatrix();
+  int m = snapshots->numRows();
+  int n = snapshots->numColumns();
+
+  phi_new_local_.assign(phi_new_local_.size(), 0.0);
+  for (int i = 0; i < m; ++i)
+  {
+    for (int j = 0; j < n; ++j)
+    {
+      phi_new_local_[i] += snapshots->item(i, j);
+    }
+    phi_new_local_[i] /= n;
+  }
+
+  LBSSolverIO::WriteFluxMoments(*this, "data/mean_snapshot");
+
+  const std::string centeredBasisName = "basis/centered_basis";
+  CAROM::BasisGenerator generator(options, isIncremental, centeredBasisName);
+
+  for (int j = 0; j < n; ++j)
+  {
+    std::unique_ptr<CAROM::Vector> snapshot_col = snapshots->getColumn(j);
+    std::vector<double> centered_sample(m);
+
+    for (int i = 0; i < m; ++i)
+    {
+      centered_sample[i] = (*snapshot_col)(i) - phi_new_local_[i];
+    }
+
+    generator.takeSample(centered_sample.data());
   }
   generator.endSamples();
 
@@ -481,9 +512,27 @@ LBSProblem::MergePhase(int nsnaps)
 }
 
 void
+LBSProblem::SaveBasis()
+{
+  for (int r=0; r<romRank; ++r)
+  {
+    auto basis = spatialbasis->getColumn(r);
+
+    std::vector<double> basis_local_;
+
+    for (size_t i = 0; i < basis->dim(); ++i) {
+        basis_local_.push_back(basis->item(i));
+    }
+    phi_new_local_ = basis_local_;
+
+    LBSSolverIO::WriteFluxMoments(*this, "basis/centered_basis_"+std::to_string(r));
+  }
+}
+
+void
 LBSProblem::ReadBasis()
 {
-  const std::string basisName = "basis/basis";
+  const std::string basisName = "basis/centered_basis";
   static std::unique_ptr<CAROM::BasisReader> reader_ptr;
   reader_ptr = std::make_unique<CAROM::BasisReader>(basisName);
   spatialbasis = reader_ptr->getSpatialBasis();
@@ -522,37 +571,26 @@ LBSProblem::OperatorAction()
   {
     auto raw_context = solver->GetContext();
     auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
-    auto scope = gs_context_ptr->lhs_src_scope;
 
-    std::string baseName = "mode_";
-    for (int r=0; r<romRank; ++r)
-    {
-      auto basis = spatialbasis->getColumn(r);
-      // basis->gather();
+    const std::string baseName = "data/mean_snapshot";
+    LBSSolverIO::ReadFluxMoments(*this, baseName, false);
 
-      std::vector<double> basis_local_;
+    std::vector<double> mean_snapshot_;
 
-      for (size_t i = 0; i < basis->dim(); ++i) {
-          basis_local_.push_back(basis->item(i));
-      }
-      phi_new_local_ = basis_local_;
-
-      auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
-      gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, basis_local_, scope);
-      gs_context_ptr->ApplyInverseTransportOperator(scope);
-      phi_new_local_ = basis_local_ - phi_new_local_;
-      LBSSolverIO::WriteFluxMoments(*this,baseName+std::to_string(r));
+    for (size_t i = 0; i < phi_old_local_.size(); ++i) {
+      mean_snapshot_.push_back(phi_old_local_[i]);
     }
 
-    // Reconstruct the solution phi = sum_r c_r * basis_r
-    phi_old_local_.assign(phi_old_local_.size(), 0.0);
-    // Calculate RHS
-    scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
-    gs_context_ptr->set_source_function(groupsets_[0], q_moments_local_, phi_old_local_, scope);
-
-    // Apply transport operator
+    auto scope = gs_context_ptr->lhs_src_scope;
+    q_moments_local_.assign(q_moments_local_.size(), 0.0);
+    gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, mean_snapshot_, scope);
     gs_context_ptr->ApplyInverseTransportOperator(scope);
-    LBSSolverIO::WriteFluxMoments(*this,"rhs");
+
+    for (int i = 0; i < local_node_count_; ++i)
+      phi_new_local_[i] = mean_snapshot_[i] - phi_new_local_[i];
+
+    std::string operatedBaseName = "data/operated_mean_snapshot";
+    LBSSolverIO::WriteFluxMoments(*this, operatedBaseName);
   }
 }
 
@@ -575,15 +613,16 @@ LBSProblem::AssembleAU()
       for (size_t i = 0; i < basis->dim(); ++i) {
           basis_local_.push_back(basis->item(i));
       }
-      phi_new_local_ = basis_local_;
+      for (int i = 0; i < local_node_count_; ++i)
+        phi_new_local_[i] = basis_local_[i];
 
-      auto scope = gs_context_ptr->lhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+      auto scope = gs_context_ptr->lhs_src_scope;
       q_moments_local_.assign(q_moments_local_.size(), 0.0);
       gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, basis_local_, scope);
       gs_context_ptr->ApplyInverseTransportOperator(scope);
-      phi_new_local_ = basis_local_ - phi_new_local_;
+      
       for (int i = 0; i < local_node_count_; ++i)
-        AU->item(i, r) = phi_new_local_[i];
+        AU->item(i, r) = basis_local_[i] - phi_new_local_[i];
     }
   }
   return AU;
@@ -597,18 +636,22 @@ LBSProblem::LoadRHS()
   {
     auto raw_context = solver->GetContext();
     auto gs_context_ptr = std::dynamic_pointer_cast<WGSContext>(raw_context);
-    // Reconstruct the solution phi = sum_r c_r * basis_r
-    phi_old_local_.assign(phi_old_local_.size(), 0.0);
-    phi_new_local_.assign(phi_new_local_.size(), 0.0);
     q_moments_local_.assign(q_moments_local_.size(), 0.0);
     // Calculate RHS
-    auto scope = gs_context_ptr->rhs_src_scope | ZERO_INCOMING_DELAYED_PSI;
+    SourceFlags scope = APPLY_FIXED_SOURCES;
     gs_context_ptr->set_source_function(groupsets_[0], q_moments_local_, phi_old_local_, scope);
 
     // Apply transport operator
     gs_context_ptr->ApplyInverseTransportOperator(scope);
+
+    const std::string operatedBaseName = "data/operated_mean_snapshot";
+    LBSSolverIO::ReadFluxMoments(*this, operatedBaseName, false);
     for (int i = 0; i < local_node_count_; ++i)
-      (*b)(i) = phi_new_local_[i];
+    {
+      (*b)(i) = phi_new_local_[i] - phi_old_local_[i];
+    }
+    std::string baseName = "data/rhs";
+    LBSSolverIO::WriteFluxMoments(*this, baseName);
   }
   return b;
 }
@@ -668,6 +711,12 @@ LBSProblem::SolveROM(
     for (size_t i = 0; i < basis->dim(); ++i)
       phi_new_local_[i] += (*c_vec)(r) * basis->item(i);
   }
+
+  std::string baseName = "data/mean_snapshot";
+  LBSSolverIO::ReadFluxMoments(*this, baseName, false);
+
+  for (int i = 0; i < local_node_count_; ++i)
+    phi_new_local_[i] += phi_old_local_[i];
 }
 
 void 

@@ -95,6 +95,8 @@ SteadyStateSourceSolver::Execute()
   if (options.phase == "mipod")
   {
     lbs_problem_->ReadBasis();
+    lbs_problem_->OperatorAction();
+    lbs_problem_->SaveBasis();
     std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
     std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
     lbs_problem_->MIPOD(AU_, b_);
