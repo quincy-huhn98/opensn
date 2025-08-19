@@ -67,27 +67,41 @@ if __name__ == "__main__":
         phase="offline"
         print("Phase default to offline")
     
-    # Create Mesh
+    # Setup mesh
     widths = [2., 1., 2., 1., 2.]
-    nrefs = [200, 200, 200, 200, 200]
+    nrefs = [40, 20, 40, 20, 40]
     Nmat = len(widths)
-    nodes = [0.]
+    x_nodes = [0.]
     for imat in range(Nmat):
         dx = widths[imat] / nrefs[imat]
         for i in range(nrefs[imat]):
-            nodes.append(nodes[-1] + dx)
-    meshgen = OrthogonalMeshGenerator(node_sets=[nodes])
+            x_nodes.append(x_nodes[-1] + dx)
+    
+    y_nodes = []
+    N = 80
+    L = 8
+    xmin = 0
+    dx = L / N
+    for i in range(N + 1):
+        y_nodes.append(xmin + i * dx)
+    meshgen = OrthogonalMeshGenerator(
+        node_sets=[x_nodes, y_nodes],
+        partitioner=KBAGraphPartitioner(
+            nx=2,
+            ny=2,
+            xcuts=[4.0],
+            ycuts=[4.0],
+        ))
     grid = meshgen.Execute()
 
-    # Set block IDs
-    z_min = 0.0
-    z_max = widths[1]
+    x_min = 0.0
+    x_max = widths[1]
     for imat in range(Nmat):
-        z_max = z_min + widths[imat]
-        print("imat=", imat, ", zmin=", z_min, ", zmax=", z_max)
-        lv = RPPLogicalVolume(infx=True, infy=True, zmin=z_min, zmax=z_max)
+        x_max = x_min + widths[imat]
+        lv = RPPLogicalVolume(xmin=x_min, xmax=x_max, infy=True, infz=True)
         grid.SetBlockIDFromLogicalVolume(lv, imat, True)
-        z_min = z_max
+        x_min = x_max
+
 
     # Add cross sections to materials
     total = [50., 5., 0., sigma_t, sigma_t]
@@ -104,51 +118,56 @@ if __name__ == "__main__":
     src0 = VolumetricSource(block_ids=[0], group_strength=[50.])
     src1 = VolumetricSource(block_ids=[3], group_strength=[param_q])
 
-    # Angular Quadrature
-    gl_quad = GLProductQuadrature1DSlab(n_polar=128, scattering_order=0)
+    # Setup Physics
+    fac = 1
+    #pquad = GLCProductQuadrature2DXY(6 * fac, 16 * fac)
+    pquad = GLCProductQuadrature2DXY(n_polar=4, n_azimuthal=32, scattering_order=0)
 
     # LBS block option
-    num_groups = 1
     if phase == "online":
         phys_options = {
-                "spatial_discretization": "pwld",
                 "boundary_conditions": [
                     {"name": "zmin", "type": "vacuum"},
-                    {"name": "zmax", "type": "vacuum"}
+                    {"name": "zmax", "type": "vacuum"},
+                    {"name": "ymin", "type": "vacuum"},
+                    {"name": "ymax", "type": "vacuum"}
                 ],
                 "volumetric_sources": [src0, src1],
                 "param_id": 0,
                 "phase": phase,
                 "param_file": "data/sigmas.txt",
-                "new_point": scatt
+                "new_point": param
             }
     else:
         phys_options = {
-                "spatial_discretization": "pwld",
                 "boundary_conditions": [
                     {"name": "zmin", "type": "vacuum"},
-                    {"name": "zmax", "type": "vacuum"}
+                    {"name": "zmax", "type": "vacuum"},
+                    {"name": "ymin", "type": "vacuum"},
+                    {"name": "ymax", "type": "vacuum"}
                 ],
                 "volumetric_sources": [src0, src1],
                 "param_id": p_id,
                 "phase": phase
             }
-        
+    
+    num_groups = 1
     phys = DiscreteOrdinatesProblem(
         mesh=grid,
         num_groups=num_groups,
         groupsets=[
             {
-                "groups_from_to": (0, num_groups - 1),
-                "angular_quadrature": gl_quad,
+                "groups_from_to": [0, 0],
+                "angular_quadrature": pquad,
+                "angle_aggregation_num_subsets": 1,
                 "inner_linear_method": "petsc_gmres",
-                "l_abs_tol": 1.0e-9,
+                "l_abs_tol": 1.0e-8,
                 "l_max_its": 300,
-                "gmres_restart_interval": 30,
+                "gmres_restart_interval": 100,
             },
         ],
         xs_map=xs_map,
-        scattering_order=0,
+        scattering_order= 0,
         options=phys_options
     )
 

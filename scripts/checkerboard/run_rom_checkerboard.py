@@ -5,14 +5,14 @@ import matplotlib.pyplot as plt
 import scipy.interpolate
 from matplotlib.colors import LogNorm
 
-param_q = np.random.uniform(0.1,2,8)
+param_q = np.random.uniform(0,1,48)
 
-param_q = np.append(param_q, [0.1,2], axis=0)
+param_q = np.append(param_q, [0,1], axis=0)
 
 phase = 0
 
 for i, param in enumerate(param_q):
-    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p p_id={}".format(phase, param, i)
+    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p scatt={} -p p_id={}".format(phase, param, i)
     args = cmd.split(" ")
     print(args)
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -39,26 +39,27 @@ plt.grid(True)
 plt.tight_layout()
 plt.savefig("results/svd_decay.jpg")
 
-# myoutput = open("errors.txt", "w")
-# for i, param in enumerate(param_q):
-#     cmd = "mpiexec -n=4 ../../build/python/opensn -i systems_checkerboard.py -p param_q={} -p id={}".format(param,i)
-#     args = cmd.split(" ")
-#     print(args)
-#     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=myoutput, text=True)
-#     output, errors = process.communicate()
-#     print("Output:", output)
-#     print("Errors:", errors)
+phase = 2
+myoutput = open("errors.txt", "w")
+for i, param in enumerate(param_q):
+    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p scatt={} -p p_id={}".format(phase, param,i)
+    args = cmd.split(" ")
+    print(args)
+    process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=myoutput, text=True)
+    output, errors = process.communicate()
+    print("Output:", output)
+    print("Errors:", errors)
 
 
 np.savetxt("data/params.txt", param_q)
 
-test = [0.1,2.0]#np.random.uniform(5,15,10)
+test = np.linspace(0,1,10)
 
 error = 0
 
 for i, param in enumerate(test):
-    phase = 3
-    cmd = "mpiexec -n 4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p p_id=0".format(phase, param)
+    phase = 4
+    cmd = "mpiexec -n 4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p scatt={} -p p_id=0".format(phase, param)
     args = cmd.split(" ")
     print(args)
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -67,7 +68,7 @@ for i, param in enumerate(test):
     print("Errors:", errors)
 
     phase = 0
-    cmd = "mpiexec -n 4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p p_id=0".format(phase, param)
+    cmd = "mpiexec -n 4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p scatt={} -p p_id=0".format(phase, param)
     args = cmd.split(" ")
     print(args)
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -77,7 +78,7 @@ for i, param in enumerate(test):
 
     # Update this glob pattern to match your filenames
     # e.g., "mode_*.h5", "rhs*.h5", etc.
-    file_pattern = "output/mi_rom{}.h5"
+    file_pattern = "output/rom{}.h5"
 
     all_x = []
     all_y = []
@@ -147,7 +148,7 @@ for i, param in enumerate(test):
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("ROM Solution Interpolated Heatmap q={}".format(param))
+    plt.title("ROM Solution Interpolated Heatmap c={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_rom{}.jpg".format(i))
@@ -161,7 +162,7 @@ for i, param in enumerate(test):
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("FOM Solution Interpolated Heatmap q={}".format(param))
+    plt.title("FOM Solution Interpolated Heatmap c={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_fom{}.jpg".format(i))
@@ -179,9 +180,42 @@ for i, param in enumerate(test):
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("Error Interpolated Heatmap q={}".format(param))
+    plt.title("Error Interpolated Heatmap c={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_err{}.jpg".format(i))
+
+        # Find the row index closest to y=4
+    y_target = 3.5
+    row_idx = np.argmin(np.abs(yi - y_target))
+
+    # Extract data along y = 4
+    rom_line = Zi[row_idx, :]
+    fom_line = fom_Zi[row_idx, :]
+    error_line = np.abs(fom_line - rom_line) / (np.abs(fom_line) + 1e-12)
+
+    # Plot ROM vs FOM
+    plt.figure(figsize=(8,5))
+    plt.plot(xi, rom_line, label='ROM', color='blue')
+    plt.plot(xi, fom_line, label='FOM', color='orange', linestyle='--')
+    plt.xlabel('X')
+    plt.ylabel('Scalar Value')
+    plt.title(f'ROM vs FOM at y={y_target}')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"results/line_y{y_target}_rom_fom_{i}.jpg")
+    plt.close()
+
+    # Plot Error
+    plt.figure(figsize=(8,5))
+    plt.plot(xi, error_line, label='Relative Error', color='red')
+    plt.xlabel('X')
+    plt.ylabel('Relative Error')
+    plt.title(f'Relative Error at y={y_target}')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"results/line_y{y_target}_error_{i}.jpg")
+    plt.close()
 
 print(error/i)

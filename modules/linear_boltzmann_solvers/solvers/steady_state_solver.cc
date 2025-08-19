@@ -85,7 +85,7 @@ SteadyStateSourceSolver::Execute()
   if (options.phase == "systems")
   {
     lbs_problem_->ReadBasis();
-    //lbs_problem_->OperatorAction();
+    lbs_problem_->OperatorAction();
     std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
     std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
     const std::string& Ar_filename = "data/rom_system_Ar_" + std::to_string(options.param_id);

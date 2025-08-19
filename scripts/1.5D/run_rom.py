@@ -6,19 +6,19 @@ import scipy.interpolate
 from matplotlib.colors import LogNorm
 import os
 
-sigmas = np.random.uniform(0.1,2,48)
+sigmas = np.random.uniform(0,1,8)
 
-sigmas = np.append(sigmas, [0.1,2], axis=0)
+sigmas = np.append(sigmas, [0,1], axis=0)
 
 phase = 0
 
 for i, sigma in enumerate(sigmas):
-    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p param_q={} -p p_id={}".format(phase, sigma, i))
+    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D_reed.py -p phase={} -p param_q={} -p p_id={}".format(phase, sigma, i))
 
 phase = 1
 
 print("Merge")
-os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p p_id={}".format(phase, i))
+os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D_reed.py -p phase={} -p p_id={}".format(phase, i))
 
 S = np.loadtxt("data/singular_values.txt")
 plt.semilogy(S, 'o-')
@@ -37,16 +37,16 @@ plt.close()
 
 np.savetxt("data/sigmas.txt", sigmas)
 
-test = np.linspace(0.1,2,10)
+test = np.linspace(0,1,2)
 
 error = 0
 
 for i, param in enumerate(test):
     phase = 3
-    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p param_q={} -p id=0".format(phase, param))
+    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D_reed.py -p phase={} -p param_q={} -p id=0".format(phase, param))
 
     phase = 0
-    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D.py -p phase={} -p param_q={} -p id=0".format(phase, param))
+    os.system("mpiexec -n 4 ../../build/python/opensn -i base_15D_reed.py -p phase={} -p param_q={} -p id=0".format(phase, param))
 
     # Update this glob pattern to match your filenames
     # e.g., "mode_*.h5", "rhs*.h5", etc.
@@ -110,13 +110,8 @@ for i, param in enumerate(test):
     fom_Zi = scipy.interpolate.griddata((fom_X, fom_Y), fom_V, (fom_Xi, fom_Yi), method='linear')
     fom_Zi_masked = np.ma.masked_where(fom_Zi <= 0, fom_Zi)
 
-    # Shared color limits
-    combined_min = min(np.min(Zi_masked), np.min(fom_Zi_masked))
-    combined_max = max(np.max(Zi_masked), np.max(fom_Zi_masked))
-
     plt.figure(figsize=(8,6))
-    bar = plt.pcolormesh(Xi, Yi, Zi_masked, shading='auto', cmap='viridis',
-                     norm=LogNorm(vmin=combined_min, vmax=combined_max))
+    bar = plt.pcolormesh(Xi, Yi, Zi, shading='auto', cmap='viridis')
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
@@ -129,8 +124,7 @@ for i, param in enumerate(test):
 
 
     plt.figure(figsize=(8,6))
-    bar = plt.pcolormesh(Xi, Yi, fom_Zi_masked, shading='auto', cmap='viridis',
-                     norm=LogNorm(vmin=combined_min, vmax=combined_max))
+    bar = plt.pcolormesh(Xi, Yi, fom_Zi, shading='auto', cmap='viridis')
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
@@ -142,13 +136,12 @@ for i, param in enumerate(test):
     
     error += np.linalg.norm(fom_V-V)/np.linalg.norm(fom_V)
     eps = 1e-12
-    relative_error = np.abs(fom_Zi - Zi_masked) / (np.abs(fom_Zi) + eps)
+    relative_error = np.abs(fom_Zi - Zi) / (np.abs(fom_Zi) + eps)
     error_min = np.min(relative_error)
     error_max = np.max(relative_error)
 
     plt.figure(figsize=(8,6))
-    bar = plt.pcolormesh(Xi, Yi, relative_error, shading='auto', cmap='viridis',
-                        norm=LogNorm(vmin=max(error_min, 1e-6), vmax=error_max))
+    bar = plt.pcolormesh(Xi, Yi, relative_error, shading='auto', cmap='viridis')
     plt.colorbar(bar, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
@@ -157,4 +150,37 @@ for i, param in enumerate(test):
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_err{}.jpg".format(i))
 
-print(error/10)
+    # Find the row index closest to y=4
+    y_target = 4.0
+    row_idx = np.argmin(np.abs(yi - y_target))
+
+    # Extract data along y = 4
+    rom_line = Zi[row_idx, :]
+    fom_line = fom_Zi[row_idx, :]
+    error_line = np.abs(fom_line - rom_line) / (np.abs(fom_line) + 1e-12)
+
+    # Plot ROM vs FOM
+    plt.figure(figsize=(8,5))
+    plt.plot(xi, rom_line, label='ROM', color='blue')
+    plt.plot(xi, fom_line, label='FOM', color='orange', linestyle='--')
+    plt.xlabel('X')
+    plt.ylabel('Scalar Value')
+    plt.title(f'ROM vs FOM at y={y_target}')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"results/line_y{y_target}_rom_fom_{i}.jpg")
+    plt.close()
+
+    # Plot Error
+    plt.figure(figsize=(8,5))
+    plt.plot(xi, error_line, label='Relative Error', color='red')
+    plt.xlabel('X')
+    plt.ylabel('Relative Error')
+    plt.title(f'Relative Error at y={y_target}')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(f"results/line_y{y_target}_error_{i}.jpg")
+    plt.close()
+
+print(error/i)

@@ -75,7 +75,13 @@ if __name__ == "__main__":
     dx = L / N
     for i in range(N + 1):
         nodes.append(xmin + i * dx)
-    meshgen = OrthogonalMeshGenerator(node_sets=[nodes, nodes])
+    meshgen = OrthogonalMeshGenerator(node_sets=[nodes, nodes],
+        partitioner=KBAGraphPartitioner(
+            nx=2,
+            ny=2,
+            xcuts=[3.5],
+            ycuts=[3.5],
+        ))
     grid = meshgen.Execute()
 
     # Set background (Scatterer) block ID = 0
@@ -122,12 +128,12 @@ if __name__ == "__main__":
     pquad = GLCProductQuadrature2DXY(n_polar=4, n_azimuthal=32, scattering_order=0)
 
     if phase == "online":
-        phase_options={
+        phys_options={
             "volumetric_sources": [src0, src1],
             "param_id":0,
             "phase":phase,
-            "param_file":"params.txt",
-            "new_point":param_q
+            "param_file":"data/params.txt",
+            "new_point":param
         }
     else:
         phys_options={
