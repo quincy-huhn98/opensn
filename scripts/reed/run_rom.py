@@ -3,14 +3,19 @@ import os
 import h5py
 import matplotlib.pyplot as plt
 
-sigmas = np.random.uniform(0,1,48)
+cs = np.random.uniform(0,1,46)
 
-sigmas = np.append(sigmas, [0,1], axis=0)
+qs = np.random.uniform(0,1,46)
+
+cs = np.append(cs, [0,1,0,1], axis=0)
+
+qs = np.append(qs, [0,0,1,1], axis=0)
 
 phase = 0
 
-for i, sigma in enumerate(sigmas):
-    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p p_id={}".format(phase, sigma, i))
+for i, c in enumerate(cs):
+    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
+                                                                        .format(phase,      c,            qs[i],     i))
 
 phase = 1
 
@@ -27,31 +32,36 @@ plt.tight_layout()
 plt.savefig("results/svd_decay.jpg")
 plt.close()
 
-# phase = 2
+phase = 2
 
-# for i, sigma in enumerate(sigmas):
-#     os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p p_id={}".format(phase, sigma, i))
+for i, c in enumerate(cs):
+    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
+                                                                        .format(phase,      c,            qs[i],     i))
 
-np.savetxt("data/sigmas.txt", sigmas)
+params = np.append(qs[:,np.newaxis], cs[:,np.newaxis], axis=1)
 
-test = np.linspace(0,1,10)
+np.savetxt("data/params.txt", params)
+
+test = np.random.uniform(0,1,[10,2])
 
 error = 0
 
-for i, sigma in enumerate(test):
-    phase = 3
-    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p id=0".format(phase, sigma))
-    print(sigma)
+for i, param in enumerate(test):
+    phase = 4
+    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p scatt={}  -p p_id={}"\
+                                                                        .format(phase,        param[0],   param[1],   i))
+    print(param)
     phase = 0
-    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p id=0".format(phase, sigma))
+    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p scatt={}  -p p_id={}"\
+                                                                        .format(phase,        param[0],   param[1],   i))
 
     rom = np.zeros([2000,1])
-    file_path = 'output/mi_rom0.h5'
+    file_path = 'output/rom0.h5'
     with h5py.File(file_path, 'r') as file:
         length = file['values'].size
         rom[:length,0] = file['values']
 
-    file_path = 'output/mi_rom1.h5'
+    file_path = 'output/rom1.h5'
     with h5py.File(file_path, 'r') as file:
         rom[length:,0] = file['values']
 
@@ -71,55 +81,7 @@ for i, sigma in enumerate(test):
     plt.plot(fom, "--", label="FOM")
     plt.grid()
     plt.legend()
-    plt.savefig('results/reed_mi_{}.jpg'.format(i))
+    plt.savefig('results/reed_ommi_{}.jpg'.format(i))
     plt.close()
-
-mean = np.zeros([2000,1])
-file_path = 'data/mean_snapshot0.h5'
-with h5py.File(file_path, 'r') as file:
-    length = file['values'].size
-    mean[:length,0] = file['values']
-
-file_path = 'data/mean_snapshot1.h5'
-with h5py.File(file_path, 'r') as file:
-    mean[length:,0] = file['values']
-
-plt.plot(mean, "-", label="Mean")
-plt.grid()
-plt.legend()
-plt.savefig('results/mean.jpg'.format(i))
-plt.close()
-
-mean = np.zeros([2000,1])
-file_path = 'data/operated_mean_snapshot0.h5'
-with h5py.File(file_path, 'r') as file:
-    length = file['values'].size
-    mean[:length,0] = file['values']
-
-file_path = 'data/operated_mean_snapshot1.h5'
-with h5py.File(file_path, 'r') as file:
-    mean[length:,0] = file['values']
-
-plt.plot(mean, "-", label="Mean")
-plt.grid()
-plt.legend()
-plt.savefig('results/operated_mean.jpg')
-plt.close()
-
-mean = np.zeros([2000,1])
-file_path = 'data/rhs0.h5'
-with h5py.File(file_path, 'r') as file:
-    length = file['values'].size
-    mean[:length,0] = file['values']
-
-file_path = 'data/rhs1.h5'
-with h5py.File(file_path, 'r') as file:
-    mean[length:,0] = file['values']
-
-plt.plot(mean, "-", label="Mean")
-plt.grid()
-plt.legend()
-plt.savefig('results/rhs.jpg')
-plt.close()
 
 print(error/i)

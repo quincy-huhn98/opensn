@@ -104,20 +104,12 @@ SteadyStateSourceSolver::Execute()
   if (options.phase == "online")
   {
     lbs_problem_->ReadBasis();
-    std::vector<double> params = lbs_problem_->ReadParams();
-    for (const auto& sub_param : params)
-    {
-      CAROM::Vector vec = CAROM::Vector(1, false);
-      vec(0) = sub_param;
-      lbs_problem_->param_points_.push_back(vec);
-    }
+    lbs_problem_->ReadParamMatrix(options.param_file);
 
-    CAROM::Vector new_point = CAROM::Vector(1, false);
-    new_point(0) = options.new_point;
     std::shared_ptr<CAROM::Matrix> Ar_interp;
     std::shared_ptr<CAROM::Vector> rhs_interp;
 
-    lbs_problem_->InterpolateArAndRHS(new_point, Ar_interp, rhs_interp);
+    lbs_problem_->InterpolateArAndRHS(*options.new_point, Ar_interp, rhs_interp);
     lbs_problem_->SolveROM(Ar_interp, rhs_interp);
   }
 }

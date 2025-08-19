@@ -119,8 +119,8 @@ if __name__ == "__main__":
                 "volumetric_sources": [src0, src1],
                 "param_id": 0,
                 "phase": phase,
-                "param_file": "data/sigmas.txt",
-                "new_point": scatt
+                "param_file": "data/params.txt",
+                "new_point": [param_q, scatt]
             }
     else:
         phys_options = {

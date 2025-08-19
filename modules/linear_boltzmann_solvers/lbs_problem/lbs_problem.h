@@ -253,7 +253,7 @@ public:
   void SaveBasis();
 
   /// Load the params from file
-  std::vector<double> ReadParams();
+  void ReadParamMatrix(const std::string& filename);
 
   /// Perform the operator action of the sweep onto the reduced basis
   void OperatorAction();

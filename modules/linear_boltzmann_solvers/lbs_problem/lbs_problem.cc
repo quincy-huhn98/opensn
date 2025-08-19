@@ -541,27 +541,25 @@ LBSProblem::ReadBasis()
   romRank = numColumnRB;
 }
 
-std::vector<double>
-LBSProblem::ReadParams()
+void
+LBSProblem::ReadParamMatrix(const std::string& filename)
 {
-  std::ifstream infile(options_.param_file);
-  std::vector<double> values;
+  param_points_.clear();
+
+  std::ifstream infile(filename);
   std::string line;
 
-  if (!infile) {
-    std::cerr << "Error: Could not open the parameter file.\n";
-  }
-
-  while (std::getline(infile, line)) {
+  while (std::getline(infile, line))
+  {
     std::istringstream iss(line);
-    double value;
-    if (iss >> value) {
-      values.push_back(value);
-    }
-  }
+    std::vector<double> row;
+    double val;
+    while (iss >> val)
+      row.push_back(val);
 
-  infile.close();
-  return values;
+    if (!row.empty())
+      param_points_.emplace_back(row.data(), static_cast<int>(row.size()),false,true);
+  }
 }
 
 void
@@ -855,7 +853,7 @@ LBSProblem::GetOptionsBlock()
   params.AddOptionalParameter("param_id", 0, "A parameter id for parametric problems.");
   params.AddOptionalParameter("phase", "offline", "The phase (offline, online, or merge) for ROM purposes.");
   params.AddOptionalParameter("param_file", "", "A file containing an array of parameters for ROM.");
-  params.AddOptionalParameter("new_point", 0.0, "New parameter point for ROM.");
+  params.AddOptionalParameterArray<double>("new_point", {0.0}, "New parameter point for ROM.");
 
   return params;
 }
@@ -988,7 +986,18 @@ LBSProblem::SetOptions(const InputParameters& input)
       options_.param_file = spec.GetValue<std::string>();
 
     else if (spec.GetName() == "new_point")
-      options_.new_point = spec.GetValue<double>();
+    {
+      spec.RequireBlockTypeIs(ParameterBlockType::ARRAY);
+
+      std::vector<double> vals;
+      vals.reserve(spec.GetNumParameters());
+      for (const auto& sub_param : spec)
+        vals.push_back(sub_param.GetValue<double>());
+
+      options_.new_point = std::make_unique<CAROM::Vector>(static_cast<int>(vals.size()), false);
+      for (int i = 0; i < static_cast<int>(vals.size()); ++i)
+        (*(options_.new_point))(i) = vals[static_cast<size_t>(i)];
+    }
   } // for p
 
   if (options_.restart_writes_enabled)

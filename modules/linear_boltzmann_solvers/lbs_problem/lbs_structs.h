@@ -6,6 +6,7 @@
 #include "framework/materials/multi_group_xs/multi_group_xs.h"
 #include "framework/math/math.h"
 #include "framework/math/geometry.h"
+#include "linalg/Vector.h"
 #include <functional>
 #include <chrono>
 #include <map>
@@ -205,7 +206,7 @@ struct LBSOptions
   int param_id = 0;
   std::string phase = "offline";
   std::string param_file = "";
-  double new_point = 0.0;
+  std::unique_ptr<CAROM::Vector> new_point;
 
   LBSOptions() = default;
 };
