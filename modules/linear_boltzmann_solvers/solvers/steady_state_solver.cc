@@ -10,6 +10,8 @@
 #include "caliper/cali.h"
 #include "modules/linear_boltzmann_solvers/lbs_problem/lbs_problem.h"
 #include <memory>
+#include <fstream>
+#include <chrono>
 
 namespace opensn
 {
@@ -63,8 +65,19 @@ SteadyStateSourceSolver::Execute()
     auto& options = lbs_problem_->GetOptions();
 
     auto& ags_solver = *lbs_problem_->GetAGSSolver();
+    auto start = std::chrono::high_resolution_clock::now();
     ags_solver.Solve();
 
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> elapsed = end - start;
+    if (opensn::mpi_comm.rank() == 0)
+    {
+      std::ofstream outfile("results/offline.txt");
+      if (outfile.is_open()) {
+        outfile << elapsed.count() <<std::endl;
+        outfile.close();
+      }
+    }
     if (options.restart_writes_enabled)
       WriteRestartData();
 
@@ -108,9 +121,25 @@ SteadyStateSourceSolver::Execute()
 
     std::shared_ptr<CAROM::Matrix> Ar_interp;
     std::shared_ptr<CAROM::Vector> rhs_interp;
+    lbs_problem_->SetupInterpolator(*options.new_point);
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     lbs_problem_->InterpolateArAndRHS(*options.new_point, Ar_interp, rhs_interp);
     lbs_problem_->SolveROM(Ar_interp, rhs_interp);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> elapsed = end - start;
+
+    if (opensn::mpi_comm.rank() == 0)
+    {
+      std::ofstream outfile("results/online.txt");
+      if (outfile.is_open()) 
+      {
+        outfile << elapsed.count() <<std::endl;
+        outfile.close();
+      }
+    }
   }
 }
 

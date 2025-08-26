@@ -448,13 +448,15 @@ void
 LBSProblem::MergePhase(int nsnaps)
 {
   bool update_right_SV = false;
-  int max_num_snapshots = 100;
+  int max_num_snapshots = 300;
   bool isIncremental = false;
   const std::string basisName = "basis/basis";
 
   CAROM::Options options(local_node_count_, max_num_snapshots, update_right_SV);
-  double tol = 1e-5;
+  double tol = 1e-20;
+  int rank = 15;
   options.setSingularValueTol(tol);
+  options.setMaxBasisDimension(rank);
   CAROM::BasisGenerator loader(options, isIncremental, basisName);
 
   for (int paramID = 0; paramID < nsnaps; ++paramID)
@@ -717,11 +719,8 @@ LBSProblem::SolveROM(
     phi_new_local_[i] += phi_old_local_[i];
 }
 
-void 
-LBSProblem::InterpolateArAndRHS(
-    CAROM::Vector& desired_point,
-    std::shared_ptr<CAROM::Matrix>& Ar_interp,
-    std::shared_ptr<CAROM::Vector>& rhs_interp)
+void
+LBSProblem::SetupInterpolator(CAROM::Vector& desired_point)
 {
   std::vector<std::shared_ptr<CAROM::Matrix>> Ar_matrices;
   std::vector<std::shared_ptr<CAROM::Vector>> rhs_vectors;
@@ -759,16 +758,20 @@ LBSProblem::InterpolateArAndRHS(
 
   int ref_index = getClosestPoint(param_points_, desired_point);
 
-  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
-  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
-
   Ar_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
     param_points_, rotations, Ar_matrices,
     ref_index, "SPD", "G", "LS", 0.9, false);
   rhs_interp_obj_ptr = std::make_unique<CAROM::VectorInterpolator>(
     param_points_, rotations, rhs_vectors,
     ref_index, "G", "LS", 0.9, false);
+}
 
+void 
+LBSProblem::InterpolateArAndRHS(
+    CAROM::Vector& desired_point,
+    std::shared_ptr<CAROM::Matrix>& Ar_interp,
+    std::shared_ptr<CAROM::Vector>& rhs_interp)
+{
   Ar_interp = Ar_interp_obj_ptr->interpolate(desired_point);
   rhs_interp = rhs_interp_obj_ptr->interpolate(desired_point);
 }

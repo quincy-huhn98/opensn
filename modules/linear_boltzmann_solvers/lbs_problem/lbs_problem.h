@@ -278,6 +278,8 @@ public:
   void MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
              std::shared_ptr<CAROM::Vector>& rhs);
 
+  void SetupInterpolator(CAROM::Vector& desired_point);
+
   /// Load reduced systems from file and interpolate
   void InterpolateArAndRHS(
     CAROM::Vector& desired_point,
@@ -374,6 +376,8 @@ protected:
 
   std::unique_ptr<CAROM::Matrix> spatialbasis;
   opensn::Vector<double> b_;
+  std::unique_ptr<CAROM::MatrixInterpolator> Ar_interp_obj_ptr;
+  std::unique_ptr<CAROM::VectorInterpolator> rhs_interp_obj_ptr;
 
 
   /// Time integration parameter meant to be set by an executor

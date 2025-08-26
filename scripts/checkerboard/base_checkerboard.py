@@ -6,6 +6,8 @@
 import os
 import sys
 import math
+import time
+import numpy as np
 
 if "opensn_console" not in globals():
     from mpi4py import MPI
@@ -28,6 +30,13 @@ if __name__ == "__main__":
     except:
         scatt=1.0
         print("Scattering Nominal = {}".format(scatt))
+
+    try:
+        print("Absorber Parameter = {}".format(sigma_t))
+        param = scatt
+    except:
+        sigma_t=10.0
+        print("Absorber Nominal = {}".format(sigma_t))
 
     try:
         print("Source Parameter = {}".format(param_q))
@@ -115,7 +124,7 @@ if __name__ == "__main__":
     scatterer.CreateSimpleOneGroup(sigma_t=1.0, c=scatt)
 
     absorber = MultiGroupXS()
-    absorber.CreateSimpleOneGroup(sigma_t=10.0, c=0.0)
+    absorber.CreateSimpleOneGroup(sigma_t=sigma_t, c=0.0)
 
     strength = [0.0]
     src0 = VolumetricSource(block_ids=[0], group_strength=strength)
@@ -133,7 +142,7 @@ if __name__ == "__main__":
             "param_id":0,
             "phase":phase,
             "param_file":"data/params.txt",
-            "new_point":param
+            "new_point":[sigma_t, scatt]
         }
     else:
         phys_options={
