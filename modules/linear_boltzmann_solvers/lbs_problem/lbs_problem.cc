@@ -760,10 +760,10 @@ LBSProblem::SetupInterpolator(CAROM::Vector& desired_point)
 
   Ar_interp_obj_ptr = std::make_unique<CAROM::MatrixInterpolator>(
     param_points_, rotations, Ar_matrices,
-    ref_index, "SPD", "G", "LS", 0.9, false);
+    ref_index, "SPD", "G", "LS", 0.999, false);
   rhs_interp_obj_ptr = std::make_unique<CAROM::VectorInterpolator>(
     param_points_, rotations, rhs_vectors,
-    ref_index, "G", "LS", 0.9, false);
+    ref_index, "G", "LS", 0.999, false);
 }
 
 void 

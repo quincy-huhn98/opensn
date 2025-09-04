@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 import scipy.interpolate
 from matplotlib.colors import LogNorm
 
-param_sigma = np.random.uniform(5,10,196)
-param_c = np.random.uniform(0.5,1,196)
+param_q = np.random.uniform(0.1,1,96)
+param_c = np.random.uniform(0,1,96)
 
-param_sigma = np.append([5,10,5,10], param_sigma , axis=0)
-param_c = np.append([0.5,0.5,1,1], param_c,  axis=0)
+param_q = np.append([0.1,1,0.1,1], param_q , axis=0)
+param_c = np.append([0,0,1,1], param_c,  axis=0)
 
 # params = np.loadtxt("data/params.txt")
 
@@ -18,9 +18,9 @@ param_c = np.append([0.5,0.5,1,1], param_c,  axis=0)
 
 phase = 0
 
-for i, param in enumerate(param_sigma):
-    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p sigma_t={} -p scatt={} -p p_id={}"\
-                                                                            .format(phase,        param,      param_c[i],i)
+for i, param in enumerate(param_c):
+    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p scatt={} -p p_id={}"\
+                                                                            .format(phase,        param_q[i],      param,i)
     args = cmd.split(" ")
     print(args)
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -49,9 +49,9 @@ plt.savefig("results/svd_decay.jpg")
 
 phase = 2
 myoutput = open("errors.txt", "w")
-for i, param in enumerate(param_sigma):
-    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p sigma_t={} -p scatt={} -p p_id={}"\
-                                                                            .format(phase,        param,      param_c[i],i)
+for i, param in enumerate(param_c):
+    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p scatt={} -p p_id={}"\
+                                                                            .format(phase,        param_q[i],      param,i)
     args = cmd.split(" ")
     print(args)
     process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=myoutput, text=True)
@@ -59,12 +59,12 @@ for i, param in enumerate(param_sigma):
     print("Output:", output)
     print("Errors:", errors)
 
-params = np.append(param_sigma[:,np.newaxis], param_c[:,np.newaxis], axis=1)
+params = np.append(param_q[:,np.newaxis], param_c[:,np.newaxis], axis=1)
 np.savetxt("data/params.txt", params)
 
-test_sigma = np.random.uniform(5,10,10)
-test_c = np.random.uniform(0.5,1,10)
-test = np.append(test_sigma[:,np.newaxis], test_c[:,np.newaxis], axis=1)
+test_q = np.random.uniform(0.1,1,10)
+test_c = np.random.uniform(0,1,10)
+test = np.append(test_q[:,np.newaxis], test_c[:,np.newaxis], axis=1)
 np.savetxt("data/validation.txt", test)
 test = np.loadtxt("data/validation.txt")
 
@@ -73,7 +73,7 @@ speedups = []
 
 for i, param in enumerate(test):
     phase = 4
-    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p sigma_t={} -p scatt={} -p p_id={}"\
+    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p scatt={} -p p_id={}"\
                                                                             .format(phase,        param[0],   param[1],  i)
     args = cmd.split(" ")
     print(args)
@@ -84,7 +84,7 @@ for i, param in enumerate(test):
     rom_time = np.loadtxt("results/online.txt")
 
     phase = 0
-    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p sigma_t={} -p scatt={} -p p_id={}"\
+    cmd = "mpiexec -n=4 ../../build/python/opensn -i base_checkerboard.py -p phase={} -p param_q={} -p scatt={} -p p_id={}"\
                                                                             .format(phase,        param[0],   param[1],  i)
     args = cmd.split(" ")
     print(args)
@@ -163,10 +163,10 @@ for i, param in enumerate(test):
     plt.figure(figsize=(8,6))
     bar = plt.pcolormesh(Xi, Yi, Zi_masked, shading='auto', cmap='viridis',
                      norm=LogNorm(vmin=combined_min, vmax=combined_max))
-    plt.colorbar(bar, label="Scalar Value")
+    plt.colorbar(bar)#, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("ROM Solution Interpolated Heatmap params={}".format(param))
+    #plt.title("ROM Solution Interpolated Heatmap params={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_rom{}.jpg".format(i))
@@ -177,10 +177,10 @@ for i, param in enumerate(test):
     plt.figure(figsize=(8,6))
     bar = plt.pcolormesh(Xi, Yi, fom_Zi_masked, shading='auto', cmap='viridis',
                      norm=LogNorm(vmin=combined_min, vmax=combined_max))
-    plt.colorbar(bar, label="Scalar Value")
+    plt.colorbar(bar)#, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("FOM Solution Interpolated Heatmap params={}".format(param))
+    #plt.title("FOM Solution Interpolated Heatmap params={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_fom{}.jpg".format(i))
@@ -188,17 +188,17 @@ for i, param in enumerate(test):
     
     errors.append(np.linalg.norm(fom_V-V)/np.linalg.norm(fom_V))
     eps = 1e-12
-    relative_error = np.abs(fom_Zi - Zi_masked) #/ (np.abs(fom_Zi)+eps)
+    relative_error = np.abs(fom_Zi - Zi_masked) / (np.abs(fom_Zi)+eps)
     speedups.append(fom_time/rom_time)
     error_min = np.min(relative_error)
     error_max = np.max(relative_error)
 
     plt.figure(figsize=(8,6))
     bar = plt.pcolormesh(Xi, Yi, relative_error, shading='auto', cmap='viridis')
-    plt.colorbar(bar, label="Scalar Value")
+    plt.colorbar(bar)#, label="Scalar Value")
     plt.xlabel("X")
     plt.ylabel("Y")
-    plt.title("Error Interpolated Heatmap params={}".format(param))
+    #plt.title("Error Interpolated Heatmap params={}".format(param))
     plt.axis("equal")
     plt.tight_layout()
     plt.savefig("results/fig_checkerboard_err{}.jpg".format(i))

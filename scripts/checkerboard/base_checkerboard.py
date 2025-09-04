@@ -142,7 +142,7 @@ if __name__ == "__main__":
             "param_id":0,
             "phase":phase,
             "param_file":"data/params.txt",
-            "new_point":[sigma_t, scatt]
+            "new_point":[param_q, scatt]
         }
     else:
         phys_options={
