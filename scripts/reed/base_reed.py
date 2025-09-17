@@ -111,7 +111,6 @@ if __name__ == "__main__":
     num_groups = 1
     if phase == "online":
         phys_options = {
-                "spatial_discretization": "pwld",
                 "boundary_conditions": [
                     {"name": "zmin", "type": "vacuum"},
                     {"name": "zmax", "type": "vacuum"}
@@ -124,7 +123,6 @@ if __name__ == "__main__":
             }
     else:
         phys_options = {
-                "spatial_discretization": "pwld",
                 "boundary_conditions": [
                     {"name": "zmin", "type": "vacuum"},
                     {"name": "zmax", "type": "vacuum"}
@@ -153,7 +151,7 @@ if __name__ == "__main__":
     )
 
     # Initialize and execute solver
-    ss_solver = SteadyStateSolver(lbs_problem=phys)
+    ss_solver = SteadyStateSourceSolver(problem=phys)
     ss_solver.Initialize()
     ss_solver.Execute()
 

@@ -92,7 +92,7 @@ option(OPENSN_WITH_PYTHON "Build with python support" ON)
 option(OPENSN_WITH_PYTHON_MODULE "Build with python module" OFF)
 
 if(OPENSN_WITH_PYTHON_MODULE)
-    set(OPENSN_WITH_PYTHON ON CACHE BOOL "Python support requested for building module" FORCE)
+  set(OPENSN_WITH_PYTHON ON CACHE BOOL "Python support requested for building module" FORCE)
 endif()
 
 option(OPENSN_WITH_LIBROM "Build with libROM support" OFF)

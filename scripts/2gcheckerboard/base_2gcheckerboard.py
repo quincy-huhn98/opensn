@@ -135,19 +135,16 @@ if __name__ == "__main__":
         )
         grid.SetBlockIDFromLogicalVolume(vol_abs, 2, True)
 
-    scatt_t = abs_2 + scatt_2
-    num_groups = 1
+    num_groups = 2
     scatterer = MultiGroupXS()
-    scatterer.CreateSimpleOneGroup(sigma_t=scatt_t, c=scatt_2/scatt_t)
-
-    abs_t = abs_1 + scatt_1
+    scatterer.LoadFromOpenSn("scatterer.xs")
 
     absorber = MultiGroupXS()
-    absorber.CreateSimpleOneGroup(sigma_t=abs_t, c=scatt_1/abs_t)
+    absorber.LoadFromOpenSn("absorber.xs")
 
-    strength = [0.0]
+    strength = [0.0 for _ in range(num_groups)]
     src0 = VolumetricSource(block_ids=[0], group_strength=strength)
-    strength = [param_q]
+    strength = [param_q for _ in range(num_groups)]
     src1 = VolumetricSource(block_ids=[1], group_strength=strength)
 
     # Setup Physics
@@ -175,7 +172,7 @@ if __name__ == "__main__":
         num_groups=num_groups,
         groupsets=[
             {
-                "groups_from_to": [0, 0],
+                "groups_from_to": [0, 1],
                 "angular_quadrature": pquad,
                 "angle_aggregation_num_subsets": 1,
                 "inner_linear_method": "petsc_gmres",

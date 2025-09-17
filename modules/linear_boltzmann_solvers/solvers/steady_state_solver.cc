@@ -65,19 +65,21 @@ SteadyStateSourceSolver::Execute()
     auto& options = lbs_problem_->GetOptions();
 
     auto& ags_solver = *lbs_problem_->GetAGSSolver();
+
     auto start = std::chrono::high_resolution_clock::now();
     ags_solver.Solve();
-
     auto end = std::chrono::high_resolution_clock::now();
+
     std::chrono::duration<double, std::milli> elapsed = end - start;
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/offline.txt");
+      std::ofstream outfile("results/offline_time.txt");
       if (outfile.is_open()) {
         outfile << elapsed.count() <<std::endl;
         outfile.close();
       }
     }
+
     if (options.restart_writes_enabled)
       WriteRestartData();
 
@@ -98,9 +100,9 @@ SteadyStateSourceSolver::Execute()
   if (options.phase == "systems")
   {
     lbs_problem_->ReadBasis();
-    lbs_problem_->OperatorAction();
+    lbs_problem_->OperateMean();
     std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
-    std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
+    std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->AssembleRHS();
     const std::string& Ar_filename = "data/rom_system_Ar_" + std::to_string(options.param_id);
     const std::string& rhs_filename = "data/rom_system_rhs_" + std::to_string(options.param_id);
     lbs_problem_->AssembleROM(AU_, b_, Ar_filename, rhs_filename);
@@ -108,10 +110,9 @@ SteadyStateSourceSolver::Execute()
   if (options.phase == "mipod")
   {
     lbs_problem_->ReadBasis();
-    lbs_problem_->OperatorAction();
-    lbs_problem_->SaveBasis();
+    lbs_problem_->OperateMean();
     std::shared_ptr<CAROM::Matrix> AU_ = lbs_problem_->AssembleAU();
-    std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->LoadRHS();
+    std::shared_ptr<CAROM::Vector> b_ = lbs_problem_->AssembleRHS();
     lbs_problem_->MIPOD(AU_, b_);
   }
   if (options.phase == "online")
@@ -133,7 +134,7 @@ SteadyStateSourceSolver::Execute()
 
     if (opensn::mpi_comm.rank() == 0)
     {
-      std::ofstream outfile("results/online.txt");
+      std::ofstream outfile("results/online_time.txt");
       if (outfile.is_open()) 
       {
         outfile << elapsed.count() <<std::endl;

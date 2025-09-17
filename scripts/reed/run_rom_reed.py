@@ -3,25 +3,27 @@ import os
 import h5py
 import matplotlib.pyplot as plt
 
+# Sampling training points
 cs = np.random.uniform(0,1,96)
-
 qs = np.random.uniform(0,1,96)
 
 cs = np.append(cs, [0,1,0,1], axis=0)
-
 qs = np.append(qs, [0,0,1,1], axis=0)
 
+# OFFLINE PHASE
 phase = 0
 
 for i, c in enumerate(cs):
     os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
                                                                         .format(phase,      c,            qs[i],     i))
 
+# MERGE PHASE
 phase = 1
 
 print("Merge")
 os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p p_id={}".format(phase, i))
 
+# Plot singular values
 S = np.loadtxt("data/singular_values.txt")
 plt.semilogy(S, 'o-')
 plt.xlabel("Mode index")
@@ -32,6 +34,7 @@ plt.tight_layout()
 plt.savefig("results/svd_decay.jpg")
 plt.close()
 
+# SYSTEMS PHASE
 phase = 2
 
 for i, c in enumerate(cs):
@@ -42,27 +45,26 @@ params = np.append(qs[:,np.newaxis], cs[:,np.newaxis], axis=1)
 
 np.savetxt("data/params.txt", params)
 
+# Generate Test Data
 test = np.random.uniform(0,1,[20,2])
 
 errors = []
 speedups = []
-int_errors = []
 
 for i, param in enumerate(test):
+    # ONLINE PHASE
     phase = 4
     os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p scatt={}  -p p_id={}"\
                                                                         .format(phase,       param[0],param[1],    i))
-    rom_time = np.loadtxt("results/online.txt")
+    rom_time = np.loadtxt("results/online_time.txt")
 
-    print(param)
+    # Reference FOM solution
     phase = 0
     os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p scatt={}  -p p_id={}"\
                                                                         .format(phase,     param[0],param[1],    i))
+    fom_time = np.loadtxt("results/offline_time.txt")
 
-    fom_time = np.loadtxt("results/offline.txt")
-    speedups.append(fom_time/rom_time)
-    int_errors.append(np.loadtxt("results/int_error.txt"))
-
+    # Plotting and Error Calculation
     rom = np.zeros([2000,1])
     file_path = 'output/rom0.h5'
     with h5py.File(file_path, 'r') as file:
@@ -84,6 +86,7 @@ for i, param in enumerate(test):
         fom[length:,0] = file['values']
     
     errors.append(np.linalg.norm(rom-fom)/np.linalg.norm(fom))
+    speedups.append(fom_time/rom_time)
 
     plt.plot(rom, "-", label="ROM")
     plt.plot(fom, "--", label="FOM")
@@ -94,5 +97,3 @@ for i, param in enumerate(test):
 
 print(np.mean(errors))
 print(np.mean(speedups))
-print(np.mean(int_errors))
-print(int_errors)

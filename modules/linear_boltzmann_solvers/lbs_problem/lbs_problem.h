@@ -255,14 +255,14 @@ public:
   /// Load the params from file
   void ReadParamMatrix(const std::string& filename);
 
-  /// Perform the operator action of the sweep onto the reduced basis
-  void OperatorAction();
+  /// Perform the operator action of the sweep on the mean snapshot
+  void OperateMean();
 
-  /// Load individual vectors of AU into a single matrix
+  /// Calculate AU via sweeps
   std::shared_ptr<CAROM::Matrix> AssembleAU();
 
-  /// Load the rhs from h5
-  std::shared_ptr<CAROM::Vector> LoadRHS();
+  /// Sweep to form RHS
+  std::shared_ptr<CAROM::Vector> AssembleRHS();
 
   /// Assemble the reduced system and save to file
   void AssembleROM(std::shared_ptr<CAROM::Matrix>& AU_, 
@@ -278,9 +278,9 @@ public:
   void MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
              std::shared_ptr<CAROM::Vector>& rhs);
 
+  /// Load reduced systems and initialize libROM interpolator objects
   void SetupInterpolator(CAROM::Vector& desired_point);
 
-  /// Load reduced systems from file and interpolate
   void InterpolateArAndRHS(
     CAROM::Vector& desired_point,
     std::shared_ptr<CAROM::Matrix>& Ar_interp,
@@ -416,10 +416,5 @@ public:
 
   static InputParameters GetXSMapEntryBlock();
 };
-
-
-std::shared_ptr<CAROM::Matrix> ConvertPETScMatToCAROM(Mat petsc_mat);
-
-std::shared_ptr<CAROM::Vector> ConvertPETScVecToCAROM(Vec petsc_vec);
 
 } // namespace opensn
