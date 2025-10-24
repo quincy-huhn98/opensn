@@ -74,9 +74,13 @@ LBSSolverIO::WriteFluxMoments(
   H5WriteDataset1D(file_id, "mesh/nodes_y", nodes_y);
   H5WriteDataset1D(file_id, "mesh/nodes_z", nodes_z);
 
-  // Loop through dof and store flux values
+  // Loop through dof and store flux values and group index
   std::vector<double> values;
   values.reserve(num_local_dofs);
+
+  std::vector<uint32_t> groups;
+  groups.reserve(num_local_dofs);
+
   for (const auto& cell : grid->local_cells)
     for (uint64_t i = 0; i < discretization.GetCellNumNodes(cell); ++i)
       for (uint64_t m = 0; m < num_moments; ++m)
@@ -84,11 +88,12 @@ LBSSolverIO::WriteFluxMoments(
         {
           const auto dof_map = discretization.MapDOFLocal(cell, i, uk_man, m, g);
           values.push_back(src[dof_map]);
+          groups.push_back(static_cast<uint32_t>(g));
         }
 
   // Write flux values to h5 and close file
   H5WriteDataset1D(file_id, "values", values);
-  H5Fclose(file_id);
+  H5WriteDataset1D(file_id, "groups", groups);
 }
 
 void

@@ -246,17 +246,8 @@ public:
   /// Load snapshots and perform SVD
   void MergePhase(int nsnaps);
 
-  /// Load the basis from libROM format
-  void ReadBasis();
-
-  /// Save the basis to h5
-  void SaveBasis();
-
   /// Load the params from file
   void ReadParamMatrix(const std::string& filename);
-
-  /// Perform the operator action of the sweep on the mean snapshot
-  void OperateMean();
 
   /// Calculate AU via sweeps
   std::shared_ptr<CAROM::Matrix> AssembleAU();
@@ -273,10 +264,6 @@ public:
   /// Solve given LHS and RHS of a ROM system
   void SolveROM(std::shared_ptr<CAROM::Matrix>& Ar,
                 std::shared_ptr<CAROM::Vector>& rhs);
-
-  /// Assemble and solve ROM using MIPOD
-  void MIPOD(std::shared_ptr<CAROM::Matrix>& Ar,
-             std::shared_ptr<CAROM::Vector>& rhs);
 
   /// Load reduced systems and initialize libROM interpolator objects
   void SetupInterpolator(CAROM::Vector& desired_point);
