@@ -78,9 +78,6 @@ if __name__ == "__main__":
             print("Systems Phase")
             phase = "systems"
         elif phase == 3:
-            print("MI-POD")
-            phase = "mipod"
-        elif phase == 4:
             print("Online Phase")
             phase = "online"
     except:
@@ -152,16 +149,16 @@ if __name__ == "__main__":
 
     # Setup Physics
     fac = 1
-    #pquad = GLCProductQuadrature2DXY(6 * fac, 16 * fac)
     pquad = GLCProductQuadrature2DXY(n_polar=4, n_azimuthal=32, scattering_order=0)
+    #pquad = GLCProductQuadrature2DXY(n_polar=8, n_azimuthal=256, scattering_order=0)
 
     if phase == "online":
         phys_options={
             "volumetric_sources": [src0, src1],
             "param_id":0,
             "phase":phase,
-            "param_file":"data/params.txt",
-            "new_point":[scatt_1, scatt_2, abs_1, abs_2]
+            "param_file":"data/interpolation_params.txt",
+            "new_point":[scatt_1, scatt_2, abs_1, abs_2, param_q]
         }
     else:
         phys_options={
@@ -200,7 +197,5 @@ if __name__ == "__main__":
 
     if phase == "online":
         phys.WriteFluxMoments("output/rom")
-    if phase == "mipod":
-        phys.WriteFluxMoments("output/mi_rom")
     if phase == "offline":
         phys.WriteFluxMoments("output/fom")

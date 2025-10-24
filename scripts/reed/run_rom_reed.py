@@ -1,99 +1,70 @@
 import numpy as np
-import os
-import h5py
-import matplotlib.pyplot as plt
+import sys, os
+sys.path.insert(0, os.path.realpath("../python"))
+
+import plotting
+import utils
 
 # Sampling training points
-cs = np.random.uniform(0,1,96)
-qs = np.random.uniform(0,1,96)
+bounds = [[0.0,1.0],[0.0,1.0]]
+num_params = 100
 
-cs = np.append(cs, [0,1,0,1], axis=0)
-qs = np.append(qs, [0,0,1,1], axis=0)
+params = utils.sample_parameter_space(bounds, num_params)
 
 # OFFLINE PHASE
 phase = 0
 
-for i, c in enumerate(cs):
-    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
-                                                                        .format(phase,      c,            qs[i],     i))
+for i, param in enumerate(params):
+    cmd = "mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
+                                                                    .format(phase,param[0], param[1],     i)
+    utils.run_opensn(cmd)
 
 # MERGE PHASE
 phase = 1
 
-print("Merge")
-os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p p_id={}".format(phase, i))
+cmd = "mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p p_id={}".format(phase, i)
+utils.run_opensn(cmd)
 
-# Plot singular values
-S = np.loadtxt("data/singular_values.txt")
-plt.semilogy(S, 'o-')
-plt.xlabel("Mode index")
-plt.ylabel("Singular value")
-plt.title("Singular value decay")
-plt.grid(True)
-plt.tight_layout()
-plt.savefig("results/svd_decay.jpg")
-plt.close()
+plotting.plot_sv(num_groups=1)
+
 
 # SYSTEMS PHASE
 phase = 2
 
-for i, c in enumerate(cs):
-    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
-                                                                        .format(phase,      c,            qs[i],     i))
-
-params = np.append(qs[:,np.newaxis], cs[:,np.newaxis], axis=1)
+for i, param in enumerate(params):
+    cmd = "mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
+                                                                    .format(phase,param[0], param[1],     i)
+    utils.run_opensn(cmd)
 
 np.savetxt("data/params.txt", params)
 
 # Generate Test Data
-test = np.random.uniform(0,1,[20,2])
+test = np.random.uniform(0,1,[10,2])
 
 errors = []
 speedups = []
 
 for i, param in enumerate(test):
     # ONLINE PHASE
-    phase = 4
-    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p scatt={}  -p p_id={}"\
-                                                                        .format(phase,       param[0],param[1],    i))
+    phase = 3
+    cmd = "mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
+                                                                    .format(phase,param[0],param[1],     i)
+    utils.run_opensn(cmd)
     rom_time = np.loadtxt("results/online_time.txt")
 
     # Reference FOM solution
     phase = 0
-    os.system("mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p param_q={} -p scatt={}  -p p_id={}"\
-                                                                        .format(phase,     param[0],param[1],    i))
+    cmd = "mpiexec -n 2 ../../build/python/opensn -i base_reed.py -p phase={} -p scatt={} -p param_q={} -p p_id={}"\
+                                                                    .format(phase,param[0],param[1],     i)
+    utils.run_opensn(cmd)
     fom_time = np.loadtxt("results/offline_time.txt")
 
-    # Plotting and Error Calculation
-    rom = np.zeros([2000,1])
-    file_path = 'output/rom0.h5'
-    with h5py.File(file_path, 'r') as file:
-        length = file['values'].size
-        rom[:length,0] = file['values']
+    error = plotting.plot_1d_flux("output/fom{}.h5", "output/rom{}.h5", ranks=range(2), pid=i)
 
-    file_path = 'output/rom1.h5'
-    with h5py.File(file_path, 'r') as file:
-        rom[length:,0] = file['values']
-
-    fom = np.zeros([2000,1])
-    file_path = 'output/fom0.h5'
-    with h5py.File(file_path, 'r') as file:
-        length = file['values'].size
-        fom[:length,0] = file['values']
-
-    file_path = 'output/fom1.h5'
-    with h5py.File(file_path, 'r') as file:
-        fom[length:,0] = file['values']
-    
-    errors.append(np.linalg.norm(rom-fom)/np.linalg.norm(fom))
+    errors.append(error)
     speedups.append(fom_time/rom_time)
 
-    plt.plot(rom, "-", label="ROM")
-    plt.plot(fom, "--", label="FOM")
-    plt.grid()
-    plt.legend()
-    plt.savefig('results/reed_ommi_{}.jpg'.format(i))
-    plt.close()
-
-print(np.mean(errors))
-print(np.mean(speedups))
+print("Avg Error ", np.mean(errors))
+np.savetxt("results/errors.txt", errors)
+print("Avg Speedup ", np.mean(speedups))
+np.savetxt("results/speedups.txt", speedups)

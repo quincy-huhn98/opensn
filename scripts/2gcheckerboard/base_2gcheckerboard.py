@@ -78,9 +78,6 @@ if __name__ == "__main__":
             print("Systems Phase")
             phase = "systems"
         elif phase == 3:
-            print("MI-POD")
-            phase = "mipod"
-        elif phase == 4:
             print("Online Phase")
             phase = "online"
     except:
@@ -137,19 +134,19 @@ if __name__ == "__main__":
 
     num_groups = 2
     scatterer = MultiGroupXS()
-    scatterer.LoadFromOpenSn("scatterer.xs")
+    scatterer.LoadFromOpenSn("data/scatterer.xs")
 
     absorber = MultiGroupXS()
-    absorber.LoadFromOpenSn("absorber.xs")
+    absorber.LoadFromOpenSn("data/absorber.xs")
 
     strength = [0.0 for _ in range(num_groups)]
     src0 = VolumetricSource(block_ids=[0], group_strength=strength)
     strength = [param_q for _ in range(num_groups)]
+    strength[1] = 0.0
     src1 = VolumetricSource(block_ids=[1], group_strength=strength)
 
     # Setup Physics
     fac = 1
-    #pquad = GLCProductQuadrature2DXY(6 * fac, 16 * fac)
     pquad = GLCProductQuadrature2DXY(n_polar=4, n_azimuthal=32, scattering_order=0)
 
     if phase == "online":
@@ -158,7 +155,7 @@ if __name__ == "__main__":
             "param_id":0,
             "phase":phase,
             "param_file":"data/params.txt",
-            "new_point":[scatt_1, scatt_2, abs_1, abs_2]
+            "new_point":[scatt_1, abs_1]
         }
     else:
         phys_options={
@@ -193,11 +190,7 @@ if __name__ == "__main__":
     ss_solver.Initialize()
     ss_solver.Execute()
 
-    phys.ComputeBalance()
-
     if phase == "online":
         phys.WriteFluxMoments("output/rom")
-    if phase == "mipod":
-        phys.WriteFluxMoments("output/mi_rom")
     if phase == "offline":
         phys.WriteFluxMoments("output/fom")
