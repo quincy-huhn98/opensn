@@ -108,11 +108,6 @@ if __name__ == "__main__":
     num_groups = 1
     if phase == "online":
         phys_options = {
-                "boundary_conditions": [
-                    {"name": "zmin", "type": "vacuum"},
-                    {"name": "zmax", "type": "vacuum"}
-                ],
-                "volumetric_sources": [src0, src1],
                 "param_id": 0,
                 "phase": phase,
                 "param_file": "data/params.txt",
@@ -120,11 +115,6 @@ if __name__ == "__main__":
             }
     else:
         phys_options = {
-                "boundary_conditions": [
-                    {"name": "zmin", "type": "vacuum"},
-                    {"name": "zmax", "type": "vacuum"}
-                ],
-                "volumetric_sources": [src0, src1],
                 "param_id": p_id,
                 "phase": phase
             }
@@ -144,7 +134,12 @@ if __name__ == "__main__":
         ],
         xs_map=xs_map,
         scattering_order=0,
-        options=phys_options
+        options=phys_options,
+        volumetric_sources= [src0, src1],
+        boundary_conditions= [
+                    {"name": "zmin", "type": "vacuum"},
+                    {"name": "zmax", "type": "vacuum"}
+        ]         
     )
 
     # Initialize and execute solver

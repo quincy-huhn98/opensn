@@ -94,6 +94,7 @@ LBSSolverIO::WriteFluxMoments(
   // Write flux values to h5 and close file
   H5WriteDataset1D(file_id, "values", values);
   H5WriteDataset1D(file_id, "groups", groups);
+  H5Fclose(file_id);
 }
 
 void

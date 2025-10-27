@@ -154,7 +154,6 @@ if __name__ == "__main__":
 
     if phase == "online":
         phys_options={
-            "volumetric_sources": [src0, src1],
             "param_id":0,
             "phase":phase,
             "param_file":"data/interpolation_params.txt",
@@ -162,7 +161,6 @@ if __name__ == "__main__":
         }
     else:
         phys_options={
-            "volumetric_sources": [src0, src1],
             "param_id":p_id,
             "phase":phase
         }
@@ -186,7 +184,8 @@ if __name__ == "__main__":
             {"block_ids": [2], "xs": absorber}
         ],
         scattering_order= 0,
-        options=phys_options
+        options=phys_options,
+        volumetric_sources= [src0, src1]
     )
 
     ss_solver = SteadyStateSourceSolver(problem=phys)

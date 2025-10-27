@@ -434,7 +434,7 @@ LBSProblem::TakeSample(int id)
   bool update_right_SV = false;
   int max_num_snapshots = 100;
   bool isIncremental = false;
-  const std::string basisName = "basis/basis_";
+  const std::string basisName = "basis/snapshots_";
 
   auto num_moments = GetNumMoments();
   auto num_groups = GetNumGroups();
@@ -495,7 +495,7 @@ LBSProblem::MergePhase(int nsnaps)
 
     for (auto paramID = 0; paramID < nsnaps; ++paramID)
     {
-      auto snap_file = "basis/basis_" + std::to_string(g) + "_" + std::to_string(paramID) + "_snapshot";
+      auto snap_file = "basis/snapshots_" + std::to_string(g) + "_" + std::to_string(paramID) + "_snapshot";
       loader.loadSamples(snap_file, "snapshot");
     }
 
@@ -554,7 +554,7 @@ LBSProblem::AssembleAU()
     Ugs.push_back(std::move(Ug));
   }
 
-  auto AU = std::make_shared<CAROM::Matrix>(num_local_dofs, romRank * num_groups, /*row_major=*/true);
+  auto AU = std::make_shared<CAROM::Matrix>(num_local_dofs, romRank * num_groups, true);
 
   // Assuming one groupset for ROM problems
   auto raw_context   = wgs_solvers_.front()->GetContext();
@@ -605,6 +605,7 @@ LBSProblem::AssembleRHS()
   auto scope = gs_context_ptr->rhs_src_scope;
 
   q_moments_local_.assign(q_moments_local_.size(), 0.0);
+  phi_old_local_.assign(phi_old_local_.size(), 0.0);
   gs_context_ptr->set_source_function(gs_context_ptr->groupset, q_moments_local_, phi_old_local_, scope);
 
   // Sweep
